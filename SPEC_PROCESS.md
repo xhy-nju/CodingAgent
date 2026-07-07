@@ -177,3 +177,19 @@
 - 根因判断：上游模型/网关对安全测试上下文中的高风险命令、越界路径和 token 脱敏样例触发过滤；这不是项目代码失败。
 - 处理：新增 `docs/cold-start/2026-07-07-opencode-workaround.md`，并将 `PLAN.md` 与 Superpowers plan 中最容易触发过滤的显式样例改成中性占位写法。
 - 当前结论：本次 opencode 冷启动未完成，不能算通过。需要停止当前 retry，避免提交半成品测试文件，并用修订后的文档重跑，或换用 Cursor/Claude/ChatGPT 编程代理完成冷启动。
+
+## 阶段 3：opencode 冷启动验证完成与修订
+
+- 日期：2026-07-07。
+- 外部 agent：opencode。
+- 执行任务：`PLAN.md` Task 4，Guardrails, Redaction, And HITL Approval State Machine。
+- 验证结论：opencode 能独立理解 Task 4 的目标和第一主贡献，但 Task 4 依赖 Task 1/2 的领域模型、策略加载和策略配置，原计划对此提示不足。
+- opencode 产物：生成了 Task 4 自身文件，以及 Task 1/2 的前置依赖文件；这些文件未提交，作为冷启动证据处理。
+- 测试结果：opencode 报告 Red 阶段为导入失败，Green 阶段为 3 passed / 2 failed。失败点分别是 `strict_demo` 对 `run_command` 的白名单/审批语义冲突，以及脱敏测试输入与正则模式不匹配。
+- 本地复核：运行 `pytest tests/test_guardrails.py tests/test_approvals.py -v --basetemp pytest-tmp`，退出码为 1，结果为 3 passed / 2 failed；失败点与 opencode 报告一致。
+- 修订 1：在 `PLAN.md` 与 Superpowers plan 中将 `run_command` 加入 `strict_demo.allowed_tools`，使需要审批的工具能够到达 `require_approval_tools` 检查。
+- 修订 2：在 Task 4 的 `SECRET_PATTERNS` 示例中增加 `token=...` 形态，保证脱敏测试样例与实现一致。
+- 修订 3：在 Task 4 开头增加前置依赖说明，允许冷启动 agent 为 Task 4 精确创建 Task 1/2 依赖文件，但这些文件只属于验证脚手架。
+- 修订 4：在冷启动提示词中将范围限制改为“不要修改 Task 4 依赖链之外的文件”。
+- 修订 5：新增 `docs/cold-start/2026-07-07-opencode-validation-result.md`，记录完整验证结论和处置决定。
+- 当前结论：冷启动验证已产生有效反馈并完成文档修订。opencode 生成的实现文件不进入正式提交；下一阶段应从 Task 1 按 TDD 顺序正式实现。

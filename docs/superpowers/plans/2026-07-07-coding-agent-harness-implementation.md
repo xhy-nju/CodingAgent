@@ -460,7 +460,7 @@ Create `config/policies/strict_demo.json`:
 ```json
 {
   "name": "strict_demo",
-  "allowed_tools": ["list_files", "read_file", "write_file", "run_tests", "memory_search", "memory_write"],
+  "allowed_tools": ["list_files", "read_file", "write_file", "run_tests", "run_command", "memory_search", "memory_write"],
   "allowed_command_prefixes": [["python", "-m", "pytest"], ["pytest"]],
   "denied_command_fragments": ["blocked-delete", "del", "blocked-remove-item", "format", "curl", "wget", "ssh", "scp", "docker", "kubectl"],
   "protected_path_fragments": [".env", "id_rsa", "id_ed25519", ".ssh", ".aws", ".git", "credentials"],
@@ -840,6 +840,11 @@ git commit -m "feat: add sqlite audit store"
 - Consumes: `Action`, `GuardrailDecision`, `PolicyProfile`, `ToolResult`.
 - Produces: `redact_secrets(text: str) -> tuple[str, list[str]]`, `GuardrailEngine(policy: PolicyProfile, workspace: Path)`, `evaluate(action: Action) -> GuardrailDecision`, `ApprovalService` with `create`, `approve_once`, `reject`, `request_revision`, `cancel`.
 
+**Prerequisites:**
+- Complete Task 1 and Task 2 first, or create their exact prerequisite files when running this task as a cold-start probe.
+- A cold-start agent may create Task 1/2 dependency files only to make Task 4 runnable; those files are validation scaffolding unless formal implementation has reached those tasks in order.
+- Task 4 implements provider-token redaction as the minimal redaction slice. Broader HTTP header and generic credential redaction remains covered by later credential/API tasks.
+
 - [ ] **Step 1: Write failing guardrail and approval tests**
 
 Create `tests/test_guardrails.py`:
@@ -954,6 +959,7 @@ import re
 
 SECRET_PATTERNS = [
     ("provider_token", re.compile(r"demo-token-[A-Za-z0-9_-]{10,}")),
+    ("provider_token", re.compile(r"token=[A-Za-z0-9._=-]{12,}", re.IGNORECASE)),
     ("provider_token", re.compile(r"Token\s+[A-Za-z0-9._-]{12,}", re.IGNORECASE)),
 ]
 

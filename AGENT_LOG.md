@@ -109,3 +109,12 @@
 - 根因：原 `PLAN.md` Task 4 包含安全测试所需的高风险命令、越界路径和 token 脱敏样例；opencode 的 provider 对这些上下文过敏。
 - 修订：新增 opencode workaround 文档，并把 `PLAN.md` 与 Superpowers plan 中的显式样例改为中性占位写法。
 - 边界：没有进入正式实现；opencode 生成的未跟踪测试文件不应提交为项目实现。
+
+## 2026-07-07 - 阶段 3 - opencode 冷启动验证结果处理
+
+- 任务：根据 opencode 返回的 Task 4 冷启动验证报告完成文档修订和阶段收口。
+- 使用技能：`superpowers:receiving-code-review`、`superpowers:verification-before-completion`。
+- 外部反馈摘要：opencode 能理解 Task 4，但发现 `PLAN.md` 内部存在 `run_command` 白名单/审批冲突、provider-token 脱敏样例与正则不匹配、Task 4 对 Task 1/2 依赖说明不足，以及 Task 4 脱敏范围需要标注为最小切片。
+- 处理结果：修订 `PLAN.md` 与 Superpowers plan 的 `strict_demo.allowed_tools`，修订 Task 4 的 provider-token 脱敏正则示例，为 Task 4 增加前置依赖和最小脱敏范围说明，修订冷启动提示词的范围边界，新增 `docs/cold-start/2026-07-07-opencode-validation-result.md`。
+- 取舍：不提交 opencode 生成的 `src/`、`tests/`、`config/` 和 `pyproject.toml`，因为这些文件是冷启动验证脚手架，且未按 Task 1/2/4 的正式 TDD 顺序完成。
+- 下一步：清理未跟踪验证脚手架，提交文档修订，然后从 Task 1 开始正式实现。
