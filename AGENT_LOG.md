@@ -1,4 +1,4 @@
-﻿# AGENT_LOG.md
+# AGENT_LOG.md
 
 本文档按时间顺序记录与 AI 协作开发的关键节点。每条记录尽量包含时间、任务编号、触发的技能、关键 prompt/context、subagent 输出、commit hash、人工干预和经验教训。
 
@@ -80,3 +80,15 @@
 - 人工干预：人类所有者逐节确认设计，并在多处技术/产品选择中给出 A/B 答案。
 - 经验教训：mock LLM 是课程要求的可验证机制入口，不是对真实能力的放弃；WebUI 一键演示会显著提高展示质量，但后续 `PLAN.md` 必须严格控制任务颗粒度。
 - 边界：未编写任何 harness 实现代码。下一步必须由人类所有者审阅 `SPEC.md` 和 Superpowers 设计稿，确认后才能进入 `writing-plans`。
+
+## 2026-07-07 - 阶段 2 - Superpowers Writing Plans
+
+- 任务：把已确认的 `SPEC.md` 拆成可执行实现计划。
+- 使用技能：`superpowers:using-superpowers`、`superpowers:writing-plans`。
+- 输入：阶段 1 的中文 `SPEC.md` 与 Superpowers 设计稿。
+- 输出：
+  - `docs/superpowers/plans/2026-07-07-coding-agent-harness-implementation.md`。
+  - 同步后的根目录 `PLAN.md`。
+- 计划内容：16 个任务，按 TDD 串起领域模型、Action Parser、SQLite store、guardrail、HITL、工具、反馈、记忆、mock LLM、agent loop、CLI、FastAPI/SSE、React WebUI、真实 LLM 凭据、Docker、CI 和交付证据。
+- 人工决策：人类所有者确认进入下一阶段，因此开始 writing-plans；本阶段没有进入实现。
+- 边界：未编写任何 harness 实现代码。正式实现前仍需要完成冷启动验证并按反馈修订文档。

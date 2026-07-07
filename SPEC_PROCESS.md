@@ -1,4 +1,4 @@
-﻿# SPEC_PROCESS.md
+# SPEC_PROCESS.md
 
 > 本文档用于记录 `SPEC.md` 与 `PLAN.md` 的生成、迭代和冷启动验证过程。它是课程要求中的过程证据，不是最终宣传文档。
 
@@ -146,3 +146,14 @@
 - 已记录至少三轮 brainstorming 迭代；实际记录八轮关键迭代。
 - 已明确第一主贡献、mock/real LLM、WebUI、部署、CI 和凭据策略。
 - 已保留阶段门禁：用户审阅后才能进入 `writing-plans`，冷启动验证前不写实现代码。
+
+## 阶段 2：Writing Plans 记录
+
+- 日期：2026-07-07。
+- 使用技能：`superpowers:writing-plans`。
+- 输入文档：`SPEC.md` 与 `docs/superpowers/specs/2026-07-07-coding-agent-harness-design.md`。
+- 输出文档：`docs/superpowers/plans/2026-07-07-coding-agent-harness-implementation.md` 与同步后的 `PLAN.md`。
+- 计划结构：16 个任务，覆盖 Python 核心、Action Protocol、策略加载、SQLite 事件存储、治理护栏、审批状态机、工具分发、反馈解析、记忆、mock LLM、agent loop、CLI、FastAPI/SSE、React WebUI、真实 LLM 凭据、Docker/CI 和最终课程证据。
+- 任务粒度：每个任务包含失败测试、红灯验证、最小实现、绿灯验证和提交点；任务内部步骤以 2-5 分钟行动为单位。
+- 范围处理：虽然项目包含多个子系统，但它们都服务于同一个可运行 harness 纵向闭环，因此阶段 2 采用一个总实现计划，并按任务保持可独立审查。
+- 下一门禁：正式执行 Task 1 前，必须先做冷启动验证。冷启动 agent 只读取 `SPEC.md` 和 `PLAN.md`，尝试实现 1-2 个小任务，并把误解和卡点记录回本文件。
