@@ -39,3 +39,13 @@
   - 添加 `origin` remote。
   - 推送本地规划文档。
 - 边界：未编写任何 harness 实现代码。
+
+## 2026-07-07 - 阶段 0 - GitHub 远程仓库关联
+
+- 任务：将本地仓库与 GitHub 仓库关联。
+- 本地分支：`main`。
+- 远程仓库：`https://github.com/xhy-nju/CodingAgent.git`。
+- remote 名称：`origin`。
+- 阶段 0 中文文档提交：`8a8cb98`。
+- 说明：下一次 push 会将本地阶段 0 文档提交和本记录推送到 GitHub。
+- 边界：未编写任何 harness 实现代码。
