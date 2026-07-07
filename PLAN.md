@@ -63,3 +63,10 @@
 - [x] 已搜索 `superpowers`、`brainstorming`、`writing-plans`、`test-driven-development` 和 `subagent-driven-development`。
 - [x] 已确认当前 Codex session 没有暴露匹配的 Superpowers 技能或可安装插件。
 - [ ] 必须在实现前启用/安装 Superpowers，或在另一个支持 Superpowers 的智能体中完成官方流程并记录证据。
+
+## 阶段 0：Superpowers 官方安装待办
+
+- [x] 已查阅 Superpowers 官方仓库，确认 Codex App/CLI 的官方安装入口。
+- [ ] 人类所有者在 Codex App 插件侧边栏或 Codex CLI `/plugins` 中安装 `Superpowers`。
+- [ ] 安装后开启新会话，确认 `brainstorming`、`writing-plans` 和 `test-driven-development` 等技能可用。
+- [ ] 将安装证据和首次触发 Superpowers 的记录写入 `SPEC_PROCESS.md` 与 `AGENT_LOG.md`。

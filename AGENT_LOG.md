@@ -49,3 +49,14 @@
 - 阶段 0 中文文档提交：`8a8cb98`。
 - 说明：下一次 push 会将本地阶段 0 文档提交和本记录推送到 GitHub。
 - 边界：未编写任何 harness 实现代码。
+
+## 2026-07-07 - 阶段 0 - Superpowers 官方安装路径确认
+
+- 任务：查阅 Superpowers 官方仓库，确认 Codex 环境的安装方式。
+- 来源：`https://github.com/obra/superpowers`。
+- 官方信息摘要：
+  - Codex App：在侧边栏 Plugins 中找到 `Superpowers`，点击 `+` 安装。
+  - Codex CLI：输入 `/plugins`，搜索 `superpowers`，选择 `Install Plugin`。
+- 当前限制：本会话的插件发现工具没有暴露 `Superpowers`，因此无法由当前 agent 直接安装。
+- 后续动作：人类所有者需要在 Codex App/CLI 中安装，或在另一个支持 Superpowers 的 agent 中完成官方 workflow 并保存证据。
+- 边界：未编写任何 harness 实现代码。

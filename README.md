@@ -42,3 +42,9 @@ git push -u origin main
 ```
 
 创建远程仓库时不要初始化 README、`.gitignore` 或 license，因为本地仓库已经包含这些项目文件。提交前也要再次确认没有真实凭据、`.env` 文件、本地凭据存储、日志或生成的运行时状态进入仓库。
+
+## Superpowers 启用方式
+
+根据 Superpowers 官方仓库说明，Codex App 的安装方式是在 Codex App 侧边栏打开 Plugins，在 Coding 分类中找到 `Superpowers`，点击 `+` 并按提示安装。Codex CLI 的安装方式是输入 `/plugins` 打开插件搜索界面，搜索 `superpowers`，然后选择 `Install Plugin`。
+
+当前项目已经记录过一次本地检查：这个 Codex 会话没有暴露 Superpowers 技能或可安装插件候选。因此，正式进入阶段 1 前，需要先在 Codex App/CLI 或另一个支持 Superpowers 的编码智能体中完成安装，并把截图、对话记录或输出摘要记录到 `SPEC_PROCESS.md` 和 `AGENT_LOG.md`。
