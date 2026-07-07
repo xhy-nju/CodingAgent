@@ -157,3 +157,13 @@
 - 任务粒度：每个任务包含失败测试、红灯验证、最小实现、绿灯验证和提交点；任务内部步骤以 2-5 分钟行动为单位。
 - 范围处理：虽然项目包含多个子系统，但它们都服务于同一个可运行 harness 纵向闭环，因此阶段 2 采用一个总实现计划，并按任务保持可独立审查。
 - 下一门禁：正式执行 Task 1 前，必须先做冷启动验证。冷启动 agent 只读取 `SPEC.md` 和 `PLAN.md`，尝试实现 1-2 个小任务，并把误解和卡点记录回本文件。
+
+## 阶段 3：冷启动验证准备
+
+- 日期：2026-07-07。
+- 状态：准备完成，实际冷启动验证尚未执行。
+- 准备文档：`docs/cold-start/2026-07-07-validation-guide.md`。
+- 验证方式：选择一个不同于当前 Codex 会话的外部 coding agent，只提供 `SPEC.md` 与 `PLAN.md`。
+- 推荐验证任务：优先验证 `PLAN.md` 中的 Task 4：Guardrails, Redaction, And HITL Approval State Machine；也可以选择 Task 2：Policy Profiles And Strict Action Parser。
+- 记录要求：外部 agent 的名称、执行任务、是否遵守 TDD、是否误解主贡献、是否试图扩大范围、暴露出的文档歧义和关键输出摘要。
+- 下一步：人类所有者运行外部冷启动验证，并把结果发回当前会话；当前 Codex 再根据结果修订 `SPEC.md` 或 `PLAN.md`。

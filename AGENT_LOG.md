@@ -92,3 +92,12 @@
 - 计划内容：16 个任务，按 TDD 串起领域模型、Action Parser、SQLite store、guardrail、HITL、工具、反馈、记忆、mock LLM、agent loop、CLI、FastAPI/SSE、React WebUI、真实 LLM 凭据、Docker、CI 和交付证据。
 - 人工决策：人类所有者确认进入下一阶段，因此开始 writing-plans；本阶段没有进入实现。
 - 边界：未编写任何 harness 实现代码。正式实现前仍需要完成冷启动验证并按反馈修订文档。
+
+## 2026-07-07 - 阶段 3 - 冷启动验证准备
+
+- 任务：为正式实现前的 cold-start validation 准备操作指南与外部 agent 提示词。
+- 使用技能：`superpowers:using-superpowers`，并按 `superpowers:verification-before-completion` 的要求保留验证证据边界。
+- 输出：`docs/cold-start/2026-07-07-validation-guide.md`。
+- 推荐验证任务：优先让外部 agent 尝试 `PLAN.md` 的 Task 4，检查它是否理解 deterministic guardrails、HITL 状态机和 TDD 流程。
+- 人工动作：人类所有者需要在另一个不同类型 agent 中执行验证，并把结果发回当前会话。
+- 边界：当前步骤没有执行实现，也没有声称冷启动验证已通过。
