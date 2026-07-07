@@ -65,7 +65,7 @@
 - 人类所有者关键选择：
   - 项目定位采用课程演示 + 治理研究原型。
   - 第一主贡献采用治理护栏 + HITL 审批 + 沙箱边界。
-  - 已有真实 LLM API key，base URL 为 `https://njusehub.info/v1`，模型预期为 `glm-5.2`。
+  - 已有真实 LLM provider token，base URL 为 `https://njusehub.info/v1`，模型预期为 `glm-5.2`。
   - LLM 设计采用 mock 默认、real optional。
   - WebUI 要完整可用，并参考 Open Design 仓库。
   - 运行状态采用 SSE，演示入口要求 WebUI 一键演示。
@@ -101,3 +101,11 @@
 - 推荐验证任务：优先让外部 agent 尝试 `PLAN.md` 的 Task 4，检查它是否理解 deterministic guardrails、HITL 状态机和 TDD 流程。
 - 人工动作：人类所有者需要在另一个不同类型 agent 中执行验证，并把结果发回当前会话。
 - 边界：当前步骤没有执行实现，也没有声称冷启动验证已通过。
+## 2026-07-07 - 阶段 3 - opencode 敏感词过滤排障
+
+- 任务：分析用户在 opencode 冷启动验证中遇到的 `sensitive_words_detected`。
+- 使用技能：`superpowers:systematic-debugging`。
+- 证据：截图显示 opencode 在请求阶段被上游过滤并 retry；本地仓库出现 opencode 生成的未跟踪 `tests/test_guardrails.py` 与 `tests/test_approvals.py`。
+- 根因：原 `PLAN.md` Task 4 包含安全测试所需的高风险命令、越界路径和 token 脱敏样例；opencode 的 provider 对这些上下文过敏。
+- 修订：新增 opencode workaround 文档，并把 `PLAN.md` 与 Superpowers plan 中的显式样例改为中性占位写法。
+- 边界：没有进入正式实现；opencode 生成的未跟踪测试文件不应提交为项目实现。

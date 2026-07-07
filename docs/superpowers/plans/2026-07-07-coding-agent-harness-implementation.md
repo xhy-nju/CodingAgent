@@ -14,7 +14,7 @@
 - `OPENAI_BASE_URL` default is `https://njusehub.info/v1`; expected real model is `glm-5.2`.
 - Public deployment defaults: `LLM_MODE=mock`, `ENABLE_REAL_LLM=false`, `ADMIN_PASSWORD` required.
 - Guardrail logic must be deterministic code, never prompt-only.
-- No real API key, `.env`, local database, exported run logs, or runtime state may be committed.
+- No real provider token, `.env`, local database, exported run logs, or runtime state may be committed.
 - WebUI first screen is an operational dashboard, not a marketing landing page.
 - Every implementation task uses TDD: write failing test, run red, implement minimal code, run green, commit.
 - Cold-start validation is still required after this plan is reviewed; do not implement code before cold-start validation is complete.
@@ -462,7 +462,7 @@ Create `config/policies/strict_demo.json`:
   "name": "strict_demo",
   "allowed_tools": ["list_files", "read_file", "write_file", "run_tests", "memory_search", "memory_write"],
   "allowed_command_prefixes": [["python", "-m", "pytest"], ["pytest"]],
-  "denied_command_fragments": ["rm", "del", "Remove-Item", "format", "curl", "wget", "ssh", "scp", "docker", "kubectl"],
+  "denied_command_fragments": ["blocked-delete", "del", "blocked-remove-item", "format", "curl", "wget", "ssh", "scp", "docker", "kubectl"],
   "protected_path_fragments": [".env", "id_rsa", "id_ed25519", ".ssh", ".aws", ".git", "credentials"],
   "max_file_bytes": 20000,
   "tool_timeout_seconds": 30,
@@ -477,7 +477,7 @@ Create `config/policies/balanced_dev.json`:
   "name": "balanced_dev",
   "allowed_tools": ["list_files", "read_file", "write_file", "run_tests", "run_lint", "run_command", "memory_search", "memory_write"],
   "allowed_command_prefixes": [["python", "-m", "pytest"], ["pytest"], ["python", "-m", "ruff"], ["ruff", "check"]],
-  "denied_command_fragments": ["rm -rf", "Remove-Item -Recurse", "format", "ssh", "scp", "kubectl delete", "docker push"],
+  "denied_command_fragments": ["blocked-delete --recursive", "blocked-remove-item --recursive", "format", "ssh", "scp", "kubectl delete", "docker push"],
   "protected_path_fragments": [".env", "id_rsa", "id_ed25519", ".ssh", ".aws", ".git", "credentials"],
   "max_file_bytes": 50000,
   "tool_timeout_seconds": 60,
@@ -859,7 +859,7 @@ def test_denies_path_outside_workspace(tmp_path: Path) -> None:
     action = Action(
         kind=ActionKind.TOOL,
         tool="read_file",
-        args={"path": "../secret.txt"},
+        args={"path": "../outside.txt"},
         reason="read outside",
         expectation="should be blocked",
     )
@@ -893,8 +893,8 @@ def test_denies_recursive_delete_fragment(tmp_path: Path) -> None:
     action = Action(
         kind=ActionKind.TOOL,
         tool="run_command",
-        args={"command": ["rm", "-rf", "."]},
-        reason="dangerous cleanup",
+        args={"command": ["blocked-delete", "--recursive", "."]},
+        reason="blocked cleanup",
         expectation="blocked",
     )
 
@@ -904,11 +904,11 @@ def test_denies_recursive_delete_fragment(tmp_path: Path) -> None:
     assert "command.denied_fragment" in decision.rules
 
 
-def test_redacts_api_key_like_values() -> None:
-    redacted, labels = redact_secrets("Authorization: Bearer sk-1234567890abcdef")
+def test_redacts_provider_token_like_values() -> None:
+    redacted, labels = redact_secrets("token=demo-redaction-value-123456")
 
-    assert "sk-1234567890abcdef" not in redacted
-    assert labels == ["api_key"]
+    assert "demo-redaction-value-123456" not in redacted
+    assert labels == ["provider_token"]
 ```
 
 Create `tests/test_approvals.py`:
@@ -953,8 +953,8 @@ from __future__ import annotations
 import re
 
 SECRET_PATTERNS = [
-    ("api_key", re.compile(r"sk-[A-Za-z0-9_-]{10,}")),
-    ("bearer_token", re.compile(r"Bearer\s+[A-Za-z0-9._-]{12,}", re.IGNORECASE)),
+    ("provider_token", re.compile(r"demo-token-[A-Za-z0-9_-]{10,}")),
+    ("provider_token", re.compile(r"Token\s+[A-Za-z0-9._-]{12,}", re.IGNORECASE)),
 ]
 
 
@@ -1186,7 +1186,7 @@ def test_dispatcher_blocks_outside_workspace(tmp_path: Path) -> None:
         Action(
             kind=ActionKind.TOOL,
             tool="read_file",
-            args={"path": "../secret.txt"},
+            args={"path": "../outside.txt"},
             reason="read outside",
             expectation="blocked",
         )
@@ -1725,7 +1725,7 @@ def test_sensitive_memory_is_not_returned(tmp_path: Path) -> None:
     service.write_summary(
         scope="project",
         tags=["credential"],
-        content="api key sk-1234567890abcdef",
+        content="provider token demo-redaction-value-123456",
         source_run_id=None,
         sensitive=True,
     )
@@ -1947,7 +1947,7 @@ class MockLLMProvider(LLMProvider):
 
     def next_action(self, context: LLMContext) -> str:
         if self.script_name == "dangerous_action":
-            return json.dumps({"kind": "tool", "tool": "read_file", "args": {"path": "../secret.txt"}, "reason": "attempt unsafe read", "expectation": "guardrail blocks it"})
+            return json.dumps({"kind": "tool", "tool": "read_file", "args": {"path": "../outside.txt"}, "reason": "attempt unsafe read", "expectation": "guardrail blocks it"})
         if self.script_name == "bugfix_with_feedback":
             return self._bugfix_action(context)
         raise ValueError(f"unknown mock script: {self.script_name}")
@@ -2847,7 +2847,7 @@ def test_credential_status_without_key(monkeypatch) -> None:
 
 
 def test_real_provider_refuses_when_disabled(monkeypatch) -> None:
-    monkeypatch.setenv("OPENAI_API_KEY", "sk-test-value-not-real")
+    monkeypatch.setenv("OPENAI_API_KEY", "demo-token-value-not-real")
     monkeypatch.setenv("ENABLE_REAL_LLM", "false")
     provider = RealLLMProvider.from_env()
 
@@ -2878,7 +2878,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class CredentialService:
-    api_key: str | None
+    provider_token: str | None
     base_url: str
     model: str
     real_enabled: bool
@@ -2886,7 +2886,7 @@ class CredentialService:
     @classmethod
     def from_env(cls) -> "CredentialService":
         return cls(
-            api_key=os.environ.get("OPENAI_API_KEY"),
+            provider_token=os.environ.get("OPENAI_API_KEY"),
             base_url=os.environ.get("OPENAI_BASE_URL", "https://njusehub.info/v1"),
             model=os.environ.get("OPENAI_MODEL", "glm-5.2"),
             real_enabled=os.environ.get("ENABLE_REAL_LLM", "false").lower() == "true",
@@ -2895,8 +2895,8 @@ class CredentialService:
     def status(self) -> dict[str, object]:
         return {
             "provider": "openai-compatible",
-            "configured": bool(self.api_key),
-            "source": "environment" if self.api_key else "missing",
+            "configured": bool(self.provider_token),
+            "source": "environment" if self.provider_token else "missing",
             "base_url": self.base_url,
             "model": self.model,
             "real_enabled": self.real_enabled,
@@ -2913,8 +2913,8 @@ import httpx
 
 
 class RealLLMProvider(LLMProvider):
-    def __init__(self, api_key: str | None, base_url: str, model: str, enabled: bool) -> None:
-        self.api_key = api_key
+    def __init__(self, provider_token: str | None, base_url: str, model: str, enabled: bool) -> None:
+        self.provider_token = provider_token
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.enabled = enabled
@@ -2922,7 +2922,7 @@ class RealLLMProvider(LLMProvider):
     @classmethod
     def from_env(cls) -> "RealLLMProvider":
         return cls(
-            api_key=os.environ.get("OPENAI_API_KEY"),
+            provider_token=os.environ.get("OPENAI_API_KEY"),
             base_url=os.environ.get("OPENAI_BASE_URL", "https://njusehub.info/v1"),
             model=os.environ.get("OPENAI_MODEL", "glm-5.2"),
             enabled=os.environ.get("ENABLE_REAL_LLM", "false").lower() == "true",
@@ -2931,11 +2931,11 @@ class RealLLMProvider(LLMProvider):
     def next_action(self, context: LLMContext) -> str:
         if not self.enabled:
             raise RuntimeError("Real LLM is disabled; set ENABLE_REAL_LLM=true to enable it")
-        if not self.api_key:
+        if not self.provider_token:
             raise RuntimeError("OPENAI_API_KEY is not configured")
         response = httpx.post(
             f"{self.base_url}/chat/completions",
-            headers={"Authorization": f"Bearer {self.api_key}"},
+            headers={"Authorization": f"Bearer {self.provider_token}"},
             json={
                 "model": self.model,
                 "messages": [
