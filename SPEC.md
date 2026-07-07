@@ -1,92 +1,140 @@
-# SPEC.md
+﻿# SPEC.md
 
-Status: draft scaffold. This document must be completed through the brainstorming workflow before implementation code begins.
+> 状态：规约草稿骨架。本文档必须通过课程要求的 brainstorming 流程继续补全；在 `SPEC.md`、`PLAN.md` 完成并通过冷启动验证前，不编写任何实现代码。
 
-## 1. Problem Statement
+## 1. 问题陈述
 
-TBD through brainstorming.
+TODO：说明 CodingAgent 要解决的具体问题、目标用户是谁、为什么这个 harness 值得被构建和使用。
 
-## 2. Users and User Stories
+初步方向：CodingAgent 面向需要在受控环境中试验 coding agent 工作流的开发者或学生。它不是一个追求全自动替代程序员的工具，而是一个强调“可治理、可验证、可复现”的教学型 coding agent harness。它要证明：当 LLM 只负责提出下一步动作时，周围的工程机制，包括工具分发、治理、反馈、记忆和配置，仍然必须由确定性的代码承担。
 
-TBD. At least five INVEST user stories are required.
+## 2. 用户故事
 
-## 3. Functional Specification
+TODO：至少补充 5 个符合 INVEST 原则的用户故事。
 
-TBD. Each module must describe input, behavior, output, boundary conditions, and error handling.
+示例方向：
 
-## 4. Non-Functional Requirements
+- 作为项目维护者，我希望 agent 在执行危险命令前被确定性拦截，以免误删代码或破坏运行环境。
+- 作为学生开发者，我希望用 mock LLM 复现 agent 的关键行为，以便在没有真实 LLM 和网络的情况下完成单元测试。
+- 作为 reviewer，我希望看到每次工具调用、反馈信号和决策结果，以判断 agent 是否真正遵循 spec。
+- 作为使用者，我希望通过 WebUI 审批危险动作，以便在不中断整个任务上下文的情况下进行人工介入。
+- 作为课程提交者，我希望项目能够通过 Docker 在新机器上运行，以证明分发方案不是只适用于本机。
 
-### Performance
+## 3. 功能规约
 
-TBD.
+TODO：按模块描述输入、行为、输出、边界条件和错误处理。
 
-### Security and Credential Threat Model
+计划模块包括：
 
-TBD. Real API keys must never be hardcoded, committed, logged, or exposed in plaintext output.
+- agent 主循环：负责组织上下文、调用 LLM 抽象层、解析动作、分发工具、回灌结果并判断是否停止。
+- LLM 抽象层：支持真实 LLM 与 mock/stub LLM 可替换，测试默认不依赖真实 LLM。
+- 工具分发模块：提供文件读取、文件写入、shell 执行、测试运行等 coding 相关工具。
+- 治理护栏模块：识别危险动作、限制工作区边界，并在需要时进入 HITL 审批流程。
+- 反馈闭环模块：运行测试、lint 或类型检查，解析客观结果，并将反馈回灌给 agent。
+- 记忆模块：保存项目约定、历史决策和代码库知识，并按需注入上下文。
+- 配置模块：用声明式配置定义工具权限、危险命令规则、工作区边界和反馈策略。
+- WebUI/API：展示运行状态、工具调用、反馈结果和待审批危险动作。
 
-### Usability
+## 4. 非功能性需求
 
-TBD.
+### 4.1 性能
 
-### Observability
+TODO：定义 agent 单轮执行、工具调用、反馈解析和 WebUI 响应的性能目标。初步要求是本地开发场景下保持可交互，不把长时间任务阻塞在不可观察状态。
 
-TBD.
+### 4.2 安全与凭据威胁模型
 
-## 5. System Architecture
+TODO：完整描述 API Key、日志、配置文件、终端历史、Git 历史和运行时状态的威胁模型。
 
-TBD. Include components, data flow, external dependencies, LLM provider, and external tools.
+初步原则：真实 API Key 不能硬编码、不能提交、不能进入日志。项目后续应实现安全录入、查看状态、更新和清除流程；`.env` 只能作为可选来源，并必须说明其明文风险。
 
-## 6. Data Model
+### 4.3 可用性
 
-TBD.
+TODO：说明 CLI 与 WebUI 的主要使用路径。初步目标是让使用者能从命令行启动任务，在 WebUI 查看状态，并对危险动作进行人工审批。
 
-## 7. Credential and Distribution Design
+### 4.4 可观测性
 
-TBD. Current distribution decision: Docker.
+TODO：定义事件日志、工具调用记录、反馈记录、审批记录和错误记录。所有记录应避免泄露凭据。
 
-## 8. Technology Choices and Rationale
+## 5. 系统架构
 
-Initial decision:
+TODO：补充组件图、数据流、外部依赖和部署形态。
 
-- Language: Python.
-- CLI: Typer.
-- Web API: FastAPI.
-- Tests: pytest.
-- Distribution: Docker.
+初步架构由 CLI、FastAPI WebUI/API、agent core、tool dispatcher、guardrail engine、feedback engine、memory store、configuration loader 和 LLM provider adapter 组成。
 
-Final rationale TBD through brainstorming.
+## 6. 数据模型
 
-## 9. Domain and Mechanism Design
+TODO：定义主要实体、字段、关系和约束。
 
-Required for Project A.
+候选实体包括：Run、Step、Action、ToolCall、GuardrailDecision、ApprovalRequest、FeedbackSignal、MemoryRecord、ConfigProfile 和 CredentialStatus。
 
-### Tools
+## 7. 凭据与分发设计
 
-TBD.
+TODO：明确凭据存储方案、首次录入流程、更新/清除流程，以及 Docker 分发方案。
 
-### Objective Feedback Signals
+初步选择 Docker 作为主要分发形态。README 最终必须写清 `docker build`、`docker run`、key 在目标机器上的安全配置方式和已知限制。
 
-TBD.
+## 8. 技术选型与理由
 
-### Dangerous Actions
+- 语言：Python。
+- CLI：Typer。
+- WebUI/API：FastAPI。
+- 测试：pytest。
+- 本地存储：JSON/SQLite。
+- 分发：Docker。
 
-TBD.
+选择 Python 的原因是它适合快速构建 CLI、Web API、本地工具执行、测试解析和 mock-LLM 单元测试。Typer 适合提供清晰的命令行入口，FastAPI 适合快速提供 WebUI/API 状态接口，pytest 适合表达确定性的机制测试，Docker 则能满足课程对分发和新机器运行的要求。
 
-### Memory Needs
+## 9. 验收标准
 
-TBD.
+TODO：为每个功能定义客观完成标准。
 
-### Deep-Dive Contribution Dimension
+最低验收方向：
 
-Initial decision: governance guardrails, feedback loop, memory, and tool dispatch.
+- 不接入真实 LLM 时，mock LLM 能驱动 agent 主循环完成确定性测试。
+- 危险动作能被代码护栏拦截，而不是只依赖 prompt。
+- 反馈失败能被解析并回灌，mock LLM 的下一步动作会因此改变。
+- 记忆能跨运行保存并按需检索。
+- 工具分发能限制在声明的工作区边界内。
+- Docker 镜像能构建并启动项目。
 
-This section must later clarify how each mechanism is implemented as deterministic code rather than prompt-only behavior.
+## 10. 风险与未决问题
 
-## 10. Acceptance Criteria
+TODO：在 brainstorming 后补充风险清单。
 
-TBD.
+当前已知风险：
 
-## 11. Risks and Open Questions
+- 当前 Codex 环境没有暴露 Superpowers 技能，必须先补齐官方流程证据。
+- 用户选择了四个机制维度都做深，后续需要在 SPEC 中明确第一主贡献，避免范围过大。
+- 课程材料同时提到 GitHub 工作流和 `.gitlab-ci.yml`，后续需要兼容处理。
+- WebUI 是最终交付要求之一，即使核心是 harness，也需要尽早纳入架构。
 
-TBD.
+## 11. 领域与机制设计
 
+### 11.1 Coding 领域工具
+
+TODO：定义工具清单、输入输出、权限边界和错误处理。候选工具包括读取文件、写入文件、列出文件、执行安全 shell 命令、运行测试、运行 lint、查询记忆和写入记忆。
+
+### 11.2 客观反馈信号
+
+TODO：定义可由代码解析的反馈信号。候选信号包括 pytest 结果、lint 结果、类型检查结果、命令退出码、超时、文件 diff 和 guardrail 决策。
+
+### 11.3 危险动作与治理
+
+TODO：定义危险动作分类、拦截规则、审批状态机和工作区边界。示例危险动作包括递归删除、访问工作区外路径、修改凭据文件、执行网络发布命令、执行数据库删除命令等。
+
+### 11.4 记忆需求
+
+TODO：定义跨会话需要保存的信息和检索策略。候选记忆包括项目约定、用户偏好、历史架构决策、常见失败原因和工具使用限制。
+
+### 11.5 主贡献维度
+
+项目所有者选择了四个机制密集维度作为主要范围：
+
+- 治理护栏。
+- 反馈闭环。
+- 记忆。
+- 工具分发。
+
+为了评分清晰，正式 brainstorming 阶段仍应指定一个第一主贡献。当前建议是以“治理护栏 + HITL 审批 + 沙箱边界”为第一主贡献，以反馈闭环作为最重要的支撑贡献；记忆与工具分发保持完整实现，并都必须有 mock-LLM 驱动的确定性测试。
+
+TODO：在完成 Superpowers brainstorming 后，为每个维度写出可测试的代码机制设计。

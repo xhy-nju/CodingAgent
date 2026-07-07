@@ -1,19 +1,15 @@
-# REFLECTION.md
+﻿# REFLECTION.md
 
-Status: placeholder.
+> 草稿占位。最终反思报告应为 1500-2500 字中文文本，并由学生本人撰写。可以使用 AI 辅助润色，但必须如实标注。
 
-The final reflection report must be written by the human owner in 1500-2500 Chinese characters. AI assistance may be used for polishing only if clearly marked.
+TODO：最终反思至少应回答以下问题：
 
-Suggested topics:
-
-- Which Superpowers skills helped most?
-- Which parts felt formalistic?
-- Whether TDD helped or slowed AI-assisted development.
-- How long subagent-driven work stayed on track.
-- What task granularity worked best.
-- How SPEC and PLAN quality affected implementation quality.
-- A concrete case where unclear specification caused agent drift.
-- Effective prompt and context strategies.
-- What credential and distribution requirements forced the project to clarify.
-- What would change if the project were rebuilt.
-- A critical view of the Superpowers methodology.
+- 哪些 Superpowers 技能发挥了最大作用，哪些地方显得形式大于实质？
+- TDD 在 AI 协作中是阻碍还是放大器？为什么？
+- subagent-driven 工作流能让智能体自主运行多久而不偏离主题？
+- 什么样的 task 颗粒度最适合本项目？
+- `SPEC.md` 和 `PLAN.md` 的质量如何影响实现质量？请给出一个规约不清导致 subagent 偏离的具体案例。
+- 最有效的 prompt/context 策略是什么？为什么有效？
+- 凭据安全与分发要求迫使你想清楚了哪些原本容易忽略的问题？
+- 如果重做一次，你会改变什么？
+- 你对 Superpowers 方法论的批判是什么？它的假设在本项目里成立吗？

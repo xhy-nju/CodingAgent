@@ -1,23 +1,38 @@
-.venv/
+# Python
 __pycache__/
+*.py[cod]
+*.pyo
 .pytest_cache/
-.mypy_cache/
 .ruff_cache/
+.mypy_cache/
 .coverage
 htmlcov/
+.venv/
+venv/
+
+# Local secrets and credentials
+.env
+.env.*
+*.key
+*.pem
+*.p12
+*.pfx
+secrets/
+
+# Local runtime data
+.codeguard/
+.codex-run/
+logs/
+*.log
+
+# Build artifacts
 dist/
 build/
 *.egg-info/
 
-.env
-.env.*
-!.env.example
-
-.codex-run/
-*.log
-logs/
-data/
-tmp/
-
+# OS / editor
 .DS_Store
 Thumbs.db
+.idea/
+.vscode/
+
