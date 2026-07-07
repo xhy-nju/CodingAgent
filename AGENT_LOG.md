@@ -60,3 +60,12 @@
 - 当前限制：本会话的插件发现工具没有暴露 `Superpowers`，因此无法由当前 agent 直接安装。
 - 后续动作：人类所有者需要在 Codex App/CLI 中安装，或在另一个支持 Superpowers 的 agent 中完成官方 workflow 并保存证据。
 - 边界：未编写任何 harness 实现代码。
+
+## 2026-07-07 - 阶段 0 - Superpowers 安装完成确认
+
+- 任务：确认用户安装的 Superpowers 插件已经落地。
+- 插件来源：`superpowers@openai-curated-remote`。
+- 本地确认路径：`C:\Users\xhy\.codex\plugins\cache\openai-curated-remote\superpowers\6.1.1`。
+- 已确认技能：`using-superpowers`、`brainstorming`、`writing-plans`、`test-driven-development`、`subagent-driven-development`。
+- 结论：阶段 0 的 Superpowers 工具链阻塞已解除，下一步进入阶段 1 的 Superpowers brainstorming。
+- 边界：未编写任何 harness 实现代码。

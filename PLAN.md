@@ -13,17 +13,17 @@
 - [x] 将文档改为中文叙述。
 - [x] 在 `README.md` 中加入 GitHub 仓库关联说明。
 - [x] 检查当前 Codex 环境是否暴露 Superpowers 技能。
-- [ ] 在正式 brainstorming 前启用/安装 Superpowers，或在另一个支持 Superpowers 的智能体中完成官方流程并记录证据。
+- [x] 在正式 brainstorming 前启用/安装 Superpowers，或在另一个支持 Superpowers 的智能体中完成官方流程并记录证据。
 
 ## 阶段 0：GitHub 仓库设置
 
-- [ ] 在 GitHub 创建名为 `CodingAgent` 的空仓库。
-- [ ] 如果课程允许，仓库设为 Public；如果必须私有，则添加助教或老师为协作者。
-- [ ] 创建远程仓库时不要初始化 README、license 或 `.gitignore`，因为本地已经有项目文件。
-- [ ] 将本地分支重命名为 `main`。
-- [ ] 将 GitHub 仓库添加为 `origin` remote。
-- [ ] 将本地规划文档首次推送到 GitHub。
-- [ ] 在 `AGENT_LOG.md` 中记录 remote URL 和首次 push 的 commit hash。
+- [x] 在 GitHub 创建名为 `CodingAgent` 的空仓库。
+- [x] 如果课程允许，仓库设为 Public；如果必须私有，则添加助教或老师为协作者。
+- [x] 创建远程仓库时不要初始化 README、license 或 `.gitignore`，因为本地已经有项目文件。
+- [x] 将本地分支重命名为 `main`。
+- [x] 将 GitHub 仓库添加为 `origin` remote。
+- [x] 将本地规划文档首次推送到 GitHub。
+- [x] 在 `AGENT_LOG.md` 中记录 remote URL 和首次 push 的 commit hash。
 
 ## 阶段 1：Brainstorming 与 SPEC
 
@@ -62,11 +62,13 @@
 - [x] 已检查当前 Codex 环境是否有 Superpowers 技能。
 - [x] 已搜索 `superpowers`、`brainstorming`、`writing-plans`、`test-driven-development` 和 `subagent-driven-development`。
 - [x] 已确认当前 Codex session 没有暴露匹配的 Superpowers 技能或可安装插件。
-- [ ] 必须在实现前启用/安装 Superpowers，或在另一个支持 Superpowers 的智能体中完成官方流程并记录证据。
+- [x] 已在实现前启用/安装 Superpowers，并记录本地插件缓存证据。
 
 ## 阶段 0：Superpowers 官方安装待办
 
 - [x] 已查阅 Superpowers 官方仓库，确认 Codex App/CLI 的官方安装入口。
-- [ ] 人类所有者在 Codex App 插件侧边栏或 Codex CLI `/plugins` 中安装 `Superpowers`。
-- [ ] 安装后开启新会话，确认 `brainstorming`、`writing-plans` 和 `test-driven-development` 等技能可用。
-- [ ] 将安装证据和首次触发 Superpowers 的记录写入 `SPEC_PROCESS.md` 与 `AGENT_LOG.md`。
+- [x] 人类所有者在 Codex App 插件侧边栏或 Codex CLI `/plugins` 中安装 `Superpowers`。
+- [x] 安装后确认 `brainstorming`、`writing-plans` 和 `test-driven-development` 等技能文件可用。
+- [x] 将安装证据和首次触发 Superpowers 的记录写入 `SPEC_PROCESS.md` 与 `AGENT_LOG.md`。
+
+
