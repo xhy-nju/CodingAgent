@@ -9,6 +9,7 @@ __pycache__/
 htmlcov/
 .venv/
 venv/
+node_modules/
 
 # Local secrets and credentials
 .env
@@ -31,6 +32,7 @@ logs/
 dist/
 build/
 *.egg-info/
+frontend/dist/
 
 # OS / editor
 .DS_Store
