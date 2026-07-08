@@ -1,0 +1,18 @@
+services:
+  coding-agent:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      LLM_MODE: ${LLM_MODE:-mock}
+      ENABLE_REAL_LLM: ${ENABLE_REAL_LLM:-false}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://njusehub.info/v1}
+      OPENAI_MODEL: ${OPENAI_MODEL:-glm-5.2}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-change-this-before-deploying}
+      CODING_AGENT_DATA_DIR: /data
+    volumes:
+      - coding-agent-data:/data
+
+volumes:
+  coding-agent-data:

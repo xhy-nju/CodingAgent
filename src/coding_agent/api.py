@@ -9,6 +9,7 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from coding_agent.agent_loop import AgentLoop
@@ -65,6 +66,16 @@ def _run_demo(name: str, data_dir: Path) -> dict[str, Any]:
     return loop.run(f"demo {name}").model_dump(mode="json")
 
 
+def _frontend_dist_dir() -> Path:
+    return Path(os.environ.get("CODING_AGENT_FRONTEND_DIST", "frontend/dist"))
+
+
+def _mount_frontend(app: FastAPI) -> None:
+    frontend_dist = _frontend_dist_dir()
+    if frontend_dist.exists():
+        app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="frontend")
+
+
 def create_app(data_dir: Path | None = None) -> FastAPI:
     app = FastAPI(title="CodingAgent Harness")
     runtime_dir = data_dir or Path(os.environ.get("CODING_AGENT_DATA_DIR", ".coding-agent-data"))
@@ -100,6 +111,8 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
     @app.post("/api/approvals/{approval_id}/decision")
     def approval_decision(approval_id: str) -> dict[str, str]:
         return {"approval_id": approval_id, "state": "recorded"}
+
+    _mount_frontend(app)
 
     return app
 
