@@ -462,7 +462,7 @@ Create `config/policies/strict_demo.json`:
   "name": "strict_demo",
   "allowed_tools": ["list_files", "read_file", "write_file", "run_tests", "run_command", "memory_search", "memory_write"],
   "allowed_command_prefixes": [["python", "-m", "pytest"], ["pytest"]],
-  "denied_command_fragments": ["blocked-delete", "del", "blocked-remove-item", "format", "curl", "wget", "ssh", "scp", "docker", "kubectl"],
+  "denied_command_fragments": ["blocked-delete", "rm", "del", "blocked-remove-item", "format", "curl", "wget", "ssh", "scp", "docker", "kubectl"],
   "protected_path_fragments": [".env", "id_rsa", "id_ed25519", ".ssh", ".aws", ".git", "credentials"],
   "max_file_bytes": 20000,
   "tool_timeout_seconds": 30,
