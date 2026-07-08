@@ -15,6 +15,7 @@ class ToolContext(BaseModel):
 
     workspace: Path
     policy: PolicyProfile
+    memory: Any | None = None
 
 
 class ToolSpec(BaseModel):

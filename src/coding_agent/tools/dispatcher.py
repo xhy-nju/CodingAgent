@@ -51,15 +51,40 @@ class ToolDispatcher:
         return self._tools[action.tool].handler(action.args, self.context)
 
 
+def memory_search(args: dict[str, object], context: ToolContext) -> ToolResult:
+    if context.memory is None:
+        return ToolResult(status="failed", stderr_summary="memory service not configured")
+    tags = [str(tag) for tag in args.get("tags", [])]
+    query = str(args.get("query", ""))
+    records = [record.model_dump() for record in context.memory.search(tags=tags, query=query)]
+    return ToolResult(status="ok", artifacts={"records": records})
+
+
+def memory_write(args: dict[str, object], context: ToolContext) -> ToolResult:
+    if context.memory is None:
+        return ToolResult(status="failed", stderr_summary="memory service not configured")
+    memory_id = context.memory.write_summary(
+        scope=str(args.get("scope", "project")),
+        tags=[str(tag) for tag in args.get("tags", [])],
+        content=str(args["content"]),
+        source_run_id=str(args["source_run_id"]) if args.get("source_run_id") else None,
+        sensitive=bool(args.get("sensitive", False)),
+    )
+    return ToolResult(status="ok", artifacts={"memory_id": memory_id})
+
+
 def build_default_dispatcher(
     guardrails: GuardrailEngine,
     workspace: Path,
     policy: PolicyProfile,
+    memory: object | None = None,
 ) -> ToolDispatcher:
-    dispatcher = ToolDispatcher(guardrails, ToolContext(workspace=workspace, policy=policy))
+    dispatcher = ToolDispatcher(guardrails, ToolContext(workspace=workspace, policy=policy, memory=memory))
     dispatcher.register(ToolSpec(name="list_files", description="List workspace files", handler=list_files))
     dispatcher.register(ToolSpec(name="read_file", description="Read a workspace text file", handler=read_file))
     dispatcher.register(ToolSpec(name="write_file", description="Write a workspace text file", handler=write_file))
     dispatcher.register(ToolSpec(name="run_tests", description="Run pytest in workspace", handler=run_tests))
     dispatcher.register(ToolSpec(name="run_command", description="Run a guarded command", handler=run_command))
+    dispatcher.register(ToolSpec(name="memory_search", description="Search deterministic memory", handler=memory_search))
+    dispatcher.register(ToolSpec(name="memory_write", description="Write deterministic memory", handler=memory_write))
     return dispatcher
