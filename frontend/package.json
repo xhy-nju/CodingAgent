@@ -19,6 +19,7 @@
     "vitest": "latest",
     "jsdom": "latest",
     "@testing-library/react": "latest",
+    "@testing-library/user-event": "latest",
     "@testing-library/jest-dom": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest"

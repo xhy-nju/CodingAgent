@@ -33,6 +33,7 @@ dist/
 build/
 *.egg-info/
 frontend/dist/
+*.tsbuildinfo
 
 # OS / editor
 .DS_Store
