@@ -16,5 +16,8 @@ export type PolicyList = { profiles: string[] };
 export type CredentialStatus = {
   provider: string;
   configured: boolean;
+  source?: string;
+  base_url?: string;
+  model?: string;
   real_enabled: boolean;
 };

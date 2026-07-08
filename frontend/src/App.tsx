@@ -566,6 +566,18 @@ function CredentialsView({ credentials }: { credentials: CredentialStatus | null
           <dt>Provider</dt>
           <dd>{credentials?.provider ?? "openai-compatible"}</dd>
         </div>
+        <div>
+          <dt>Source</dt>
+          <dd>{credentials?.source ?? "missing"}</dd>
+        </div>
+        <div>
+          <dt>Base URL</dt>
+          <dd>{credentials?.base_url ?? "https://njusehub.info/v1"}</dd>
+        </div>
+        <div>
+          <dt>Model</dt>
+          <dd>{credentials?.model ?? "glm-5.2"}</dd>
+        </div>
       </dl>
     </section>
   );

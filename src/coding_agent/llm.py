@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass
+
+import httpx
 
 from coding_agent.domain import FeedbackSignal
 
@@ -79,3 +82,55 @@ class MockLLMProvider(LLMProvider):
                 "expectation": "agent stops",
             }
         return json.dumps(payload)
+
+
+class RealLLMProvider(LLMProvider):
+    def __init__(
+        self,
+        provider_token: str | None,
+        base_url: str,
+        model: str,
+        enabled: bool,
+    ) -> None:
+        self.provider_token = provider_token
+        self.base_url = base_url.rstrip("/")
+        self.model = model
+        self.enabled = enabled
+
+    @classmethod
+    def from_env(cls) -> "RealLLMProvider":
+        return cls(
+            provider_token=os.environ.get("OPENAI_API_KEY"),
+            base_url=os.environ.get("OPENAI_BASE_URL", "https://njusehub.info/v1"),
+            model=os.environ.get("OPENAI_MODEL", "glm-5.2"),
+            enabled=os.environ.get("ENABLE_REAL_LLM", "false").lower() == "true",
+        )
+
+    def next_action(self, context: LLMContext) -> str:
+        if not self.enabled:
+            raise RuntimeError("Real LLM is disabled; set ENABLE_REAL_LLM=true to enable it")
+        if not self.provider_token:
+            raise RuntimeError("OPENAI_API_KEY is not configured")
+
+        response = httpx.post(
+            f"{self.base_url}/chat/completions",
+            headers={"Authorization": f"Bearer {self.provider_token}"},
+            json={
+                "model": self.model,
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": "Return exactly one strict JSON CodingAgent action.",
+                    },
+                    {
+                        "role": "user",
+                        "content": f"Task: {context.task}\nStep: {context.step_index}",
+                    },
+                ],
+                "temperature": 0,
+            },
+            timeout=30,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        return str(payload["choices"][0]["message"]["content"])

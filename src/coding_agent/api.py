@@ -12,6 +12,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from coding_agent.agent_loop import AgentLoop
+from coding_agent.credentials import CredentialService
 from coding_agent.events import EventBus
 from coding_agent.guardrails import GuardrailEngine
 from coding_agent.llm import MockLLMProvider
@@ -94,13 +95,7 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 
     @app.get("/api/credentials/status")
     def credential_status() -> dict[str, object]:
-        configured = bool(os.environ.get("OPENAI_API_KEY"))
-        real_enabled = os.environ.get("ENABLE_REAL_LLM", "false").lower() == "true"
-        return {
-            "provider": "openai-compatible",
-            "configured": configured,
-            "real_enabled": real_enabled,
-        }
+        return CredentialService.from_env().status()
 
     @app.post("/api/approvals/{approval_id}/decision")
     def approval_decision(approval_id: str) -> dict[str, str]:

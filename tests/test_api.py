@@ -49,6 +49,8 @@ def test_policy_endpoint_lists_profiles(tmp_path: Path) -> None:
 
 def test_credential_status_reflects_environment(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("OPENAI_API_KEY", "provider-token-for-test")
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://example.test/v1")
+    monkeypatch.setenv("OPENAI_MODEL", "demo-model")
     monkeypatch.setenv("ENABLE_REAL_LLM", "true")
     client = TestClient(create_app(data_dir=tmp_path))
 
@@ -58,6 +60,9 @@ def test_credential_status_reflects_environment(tmp_path: Path, monkeypatch) -> 
     assert response.json() == {
         "provider": "openai-compatible",
         "configured": True,
+        "source": "environment",
+        "base_url": "https://example.test/v1",
+        "model": "demo-model",
         "real_enabled": True,
     }
 

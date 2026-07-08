@@ -8,6 +8,7 @@ from pathlib import Path
 import typer
 
 from coding_agent.agent_loop import AgentLoop
+from coding_agent.credentials import CredentialService
 from coding_agent.events import EventBus
 from coding_agent.guardrails import GuardrailEngine
 from coding_agent.llm import MockLLMProvider
@@ -17,6 +18,8 @@ from coding_agent.store import SqliteStore
 from coding_agent.tools.dispatcher import build_default_dispatcher
 
 app = typer.Typer(help="CodingAgent harness CLI")
+credentials_app = typer.Typer(help="Credential commands")
+app.add_typer(credentials_app, name="credentials")
 
 
 @app.callback()
@@ -68,3 +71,17 @@ def demo(name: str = typer.Argument(..., help="dangerous-action or bugfix")) -> 
     summary = loop.run(f"demo {name}")
     typer.echo(json.dumps(summary.model_dump(mode="json"), ensure_ascii=False, indent=2))
     raise typer.Exit(code=0 if summary.status == "succeeded" else 1)
+
+
+def _credential_status_json() -> str:
+    return json.dumps(CredentialService.from_env().status(), ensure_ascii=False, indent=2)
+
+
+@credentials_app.command("status")
+def credentials_status() -> None:
+    typer.echo(_credential_status_json())
+
+
+@app.command("credentials-status")
+def credentials_status_alias() -> None:
+    typer.echo(_credential_status_json())

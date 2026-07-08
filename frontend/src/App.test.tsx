@@ -12,6 +12,9 @@ vi.mock("./api", () => ({
   fetchCredentialStatus: vi.fn().mockResolvedValue({
     provider: "openai-compatible",
     configured: false,
+    source: "missing",
+    base_url: "https://njusehub.info/v1",
+    model: "glm-5.2",
     real_enabled: false,
   }),
   openRunEventSource: vi.fn(() => ({ close: vi.fn(), addEventListener: vi.fn() })),
@@ -35,5 +38,14 @@ describe("App", () => {
     await userEvent.click(await screen.findByRole("button", { name: /Run bugfix demo/i }));
 
     expect(await screen.findByText(/run-1/)).toBeInTheDocument();
+  });
+
+  it("shows credential model details", async () => {
+    render(<App />);
+
+    await userEvent.click(await screen.findByRole("button", { name: /Credentials/i }));
+
+    expect(await screen.findByText("glm-5.2")).toBeInTheDocument();
+    expect(screen.getByText("https://njusehub.info/v1")).toBeInTheDocument();
   });
 });
