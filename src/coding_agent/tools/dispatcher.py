@@ -12,6 +12,7 @@ from coding_agent.domain import (
 from coding_agent.guardrails import GuardrailEngine
 from coding_agent.policies import PolicyProfile
 from coding_agent.tools.base import ToolContext, ToolSpec
+from coding_agent.tools.commands import run_command, run_tests
 from coding_agent.tools.files import list_files, read_file, write_file
 
 
@@ -59,4 +60,6 @@ def build_default_dispatcher(
     dispatcher.register(ToolSpec(name="list_files", description="List workspace files", handler=list_files))
     dispatcher.register(ToolSpec(name="read_file", description="Read a workspace text file", handler=read_file))
     dispatcher.register(ToolSpec(name="write_file", description="Write a workspace text file", handler=write_file))
+    dispatcher.register(ToolSpec(name="run_tests", description="Run pytest in workspace", handler=run_tests))
+    dispatcher.register(ToolSpec(name="run_command", description="Run a guarded command", handler=run_command))
     return dispatcher
