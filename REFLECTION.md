@@ -19,3 +19,23 @@
 阶段 0 和阶段 1 已经暴露出两个有价值的事实。第一，课程要求的 spec-first 流程确实会减慢开工速度，但它迫使项目提前明确 mock LLM、真实 LLM、WebUI、Docker、CI 和凭据安全之间的关系。第二，治理护栏如果不在规约阶段写成可测试机制，很容易退化成 prompt 里的安全口号。
 
 最终反思应在实现、冷启动验证、代码审查和部署之后补全，尤其要记录哪些计划被证明过细或过粗，以及哪些地方需要人类所有者介入才能阻止 agent 偏离。
+
+## 实现阶段可纳入最终反思的观察
+
+1. Spec-first 的价值在 Task 4 冷启动验证中被证明。opencode 能理解大方向，但暴露出 `run_command` 白名单与审批语义冲突、脱敏样例与正则不一致、Task 4 前置依赖不清等问题。如果没有先做冷启动验证，这些问题会在正式实现中被误当成代码 bug。
+
+2. TDD 对 AI 协作是放大器，不只是流程负担。领域模型、Action Parser、Guardrail、Approval、Store、Memory、CLI、API 和 WebUI 都通过红灯测试明确了接口。后续修复 WebUI 500 时，新增 API workspace 位置回归测试也防止同类问题复发。
+
+3. 人类所有者的决策点非常关键。项目中多处范围选择由人类确认：完整 WebUI 而不是最小面板、WebUI 一键演示、Docker Compose 部署到阿里云、GitHub Actions 和 GitLab CI 同时提供。这些选择让交付物更贴近课程展示场景，但也增加了验证矩阵。
+
+4. mock LLM 默认路径是可复现性的核心。真实 LLM provider 被实现为显式 gate，而不是默认执行路径。这样既能利用已有 `https://njusehub.info/v1` 与 `glm-5.2` 配置，又不会让课程测试依赖外部模型稳定性或 API 额度。
+
+5. WebUI 暴露了纯测试不容易覆盖的环境问题。按钮 500 的根因不是 agent loop，而是 API 在系统 Temp 下创建 demo workspace 被 Windows 拒绝。这个问题说明“pytest 通过”不等于演示路径完整，课程项目需要 CLI、API、WebUI 和 Docker 多入口验证。
+
+6. Docker 分发迫使项目补齐很多平时容易忽略的边界：`.dockerignore`、`.env.example`、静态前端托管、Compose 环境变量默认值、阿里云安全组说明、日志查看命令。尤其是 Compose 中 `ADMIN_PASSWORD` 的强制插值会让 `docker compose build` 在没有 `.env` 时失败，这类问题只有真实运行分发命令才会暴露。
+
+7. 计划颗粒度整体合适，但前端和 Docker 任务仍偏大。较理想的拆法是把 WebUI 分成“API client scaffold”“Dashboard/Run Detail”“Credentials/Settings polish”三个任务，把 Docker 任务拆成“镜像构建”和“部署文档/CI”。本次通过中间提交和人工确认降低了大任务风险。
+
+8. Superpowers 方法论的强假设是：设计、计划、执行、验证可以清晰分层。这个假设在核心机制上成立，但在真实本地环境问题上需要系统化调试补位。比如 Docker daemon 未运行、Vite 在受限环境里 `spawn EPERM`、Windows Temp 权限问题，都不是 spec 能完全提前描述的。
+
+9. 最终反思正文应由学生本人基于这些证据撰写。AI 可以帮助整理证据和润色，但必须如实说明哪些内容由 AI 协助生成，哪些判断来自人工验收。
