@@ -25,18 +25,21 @@ class DemoRequest(BaseModel):
     name: str
 
 
-def _workspace_for_demo(name: str) -> Path:
+def _workspace_for_demo(name: str, data_dir: Path) -> Path:
+    demo_root = data_dir / "demo-workspaces"
+    demo_root.mkdir(parents=True, exist_ok=True)
+
     if name == "dangerous-action":
-        return Path(tempfile.mkdtemp(prefix="coding-agent-empty-"))
+        return Path(tempfile.mkdtemp(prefix="coding-agent-empty-", dir=demo_root))
     if name == "bugfix":
-        tempdir = Path(tempfile.mkdtemp(prefix="coding-agent-demo-"))
+        tempdir = Path(tempfile.mkdtemp(prefix="coding-agent-demo-", dir=demo_root))
         shutil.copytree(Path("demos/sample_workspace"), tempdir / "workspace")
         return tempdir / "workspace"
     raise HTTPException(status_code=400, detail="unknown demo")
 
 
 def _run_demo(name: str, data_dir: Path) -> dict[str, Any]:
-    workspace = _workspace_for_demo(name)
+    workspace = _workspace_for_demo(name, data_dir)
     store = SqliteStore(data_dir / "agent.db")
     policy = load_policy("strict_demo", Path("config/policies"))
     memory = MemoryService(store)

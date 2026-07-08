@@ -16,6 +16,17 @@ def test_create_bugfix_demo_run(tmp_path: Path) -> None:
     assert body["run_id"].startswith("run-")
 
 
+def test_demo_workspace_is_created_inside_runtime_dir(tmp_path: Path) -> None:
+    client = TestClient(create_app(data_dir=tmp_path))
+
+    response = client.post("/api/runs/demo", json={"name": "bugfix"})
+
+    assert response.status_code == 200
+    demo_root = tmp_path / "demo-workspaces"
+    assert demo_root.exists()
+    assert any(path.name == "workspace" for path in demo_root.glob("coding-agent-demo-*/workspace"))
+
+
 def test_events_endpoint_returns_sse_lines(tmp_path: Path) -> None:
     client = TestClient(create_app(data_dir=tmp_path))
     run = client.post("/api/runs/demo", json={"name": "bugfix"}).json()
