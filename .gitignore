@@ -22,6 +22,8 @@ secrets/
 # Local runtime data
 .codeguard/
 .codex-run/
+.worktrees
+.worktrees/
 logs/
 *.log
 
@@ -35,4 +37,3 @@ build/
 Thumbs.db
 .idea/
 .vscode/
-
