@@ -47,3 +47,41 @@ def test_probe_accepts_strict_final_action_without_exposing_raw_content(monkeypa
     assert result.message == "Real LLM probe succeeded"
     assert raw not in result.model_dump_json()
     assert TEST_TOKEN not in result.model_dump_json()
+
+
+def test_probe_rejects_malformed_action_without_echoing_it(monkeypatch) -> None:
+    provider = make_provider()
+    raw = "not-json-provider-token-for-test"
+    monkeypatch.setattr(provider, "next_action", lambda context: raw)
+
+    result = probe_real_llm(provider)
+
+    assert result.ok is False
+    assert result.protocol_valid is False
+    assert result.action_kind is None
+    assert result.error_code == "protocol_error"
+    assert result.message == "Provider response failed the CodingAgent Action Protocol"
+    assert raw not in result.model_dump_json()
+    assert TEST_TOKEN not in result.model_dump_json()
+
+
+def test_probe_rejects_valid_non_final_action(monkeypatch) -> None:
+    provider = make_provider()
+    raw = json.dumps(
+        {
+            "kind": "tool",
+            "tool": "list_files",
+            "args": {},
+            "reason": "inspect files",
+            "expectation": "file list",
+        }
+    )
+    monkeypatch.setattr(provider, "next_action", lambda context: raw)
+
+    result = probe_real_llm(provider)
+
+    assert result.ok is False
+    assert result.protocol_valid is False
+    assert result.action_kind == "tool"
+    assert result.error_code == "protocol_error"
+    assert result.message == "Probe response must be a final action"
