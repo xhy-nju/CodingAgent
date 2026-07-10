@@ -180,3 +180,13 @@
   - `http://127.0.0.1:5174/`：HTTP 200。
   - `http://127.0.0.1:5174/api/credentials/status`：HTTP 200。
 - 经验教训：最终证据文档应记录命令、退出码和观察结果，不应只写“已通过”；对预期 exit code 1 的护栏演示必须解释其语义。
+
+## 2026-07-10 - Real LLM Probe
+
+- Spec: `docs/superpowers/specs/2026-07-10-real-llm-probe-design.md`.
+- Added the TDD-built `python -m coding_agent llm probe` command.
+- The probe validates one strict `final` Action without constructing an Agent Loop or executing tools.
+- Automated verification: backend tests, frontend tests/build, and Docker build passed.
+- Mock verification: bugfix succeeded; dangerous-action was blocked as designed.
+- Sanitized real-provider verification: `ok=true`, `model=glm-5.2`, `protocol_valid=true`, `action_kind=final`.
+- Secret hygiene: no API key, Authorization header, or raw model response was added to Git.

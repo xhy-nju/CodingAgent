@@ -72,6 +72,29 @@ ENABLE_REAL_LLM=false
 docker compose up --build
 ```
 
+## 真实 LLM 连通性验证
+
+在 `.env` 中配置 `OPENAI_API_KEY`、`OPENAI_BASE_URL`、`OPENAI_MODEL`，并设置：
+
+```env
+ENABLE_REAL_LLM=true
+```
+
+重新构建容器后执行一次安全探测：
+
+```bash
+docker compose up --build -d
+docker compose exec coding-agent python -m coding_agent llm probe
+```
+
+探测只发送固定的低 token 请求并验证严格 Action Protocol，不会创建 Agent
+运行、执行工具或修改工作区。输出不会包含 API Key 或模型原始响应。Mock 演示仍使用：
+
+```bash
+docker compose exec coding-agent python -m coding_agent demo bugfix
+docker compose exec coding-agent python -m coding_agent demo dangerous-action
+```
+
 查看日志：
 
 ```bash
