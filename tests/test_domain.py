@@ -55,9 +55,19 @@ def test_feedback_and_tool_result_are_serializable() -> None:
 
 
 def test_approval_request_starts_pending() -> None:
+    action = Action(
+        id="action-1",
+        kind=ActionKind.TOOL,
+        tool="run_command",
+        args={"command": ["pytest"]},
+        reason="run tests",
+        expectation="test result",
+    )
     approval = ApprovalRequest(
         id="approval-1",
+        run_id="run-1",
         action_id="action-1",
+        action=action,
         state=ApprovalState.PENDING,
         rules=["command.needs_human"],
         reason="command requires approval",

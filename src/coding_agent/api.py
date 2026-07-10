@@ -5,7 +5,7 @@ import os
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
@@ -13,7 +13,9 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from coding_agent.agent_loop import AgentLoop
+from coding_agent.approvals import ApprovalService
 from coding_agent.credentials import CredentialService
+from coding_agent.domain import RunStatus
 from coding_agent.events import EventBus
 from coding_agent.guardrails import GuardrailEngine
 from coding_agent.llm import MockLLMProvider
@@ -25,6 +27,12 @@ from coding_agent.tools.dispatcher import build_default_dispatcher
 
 class DemoRequest(BaseModel):
     name: str
+
+
+class ApprovalDecisionRequest(BaseModel):
+    decision: Literal["approve", "reject"]
+    reviewer: str
+    reason: str
 
 
 def _workspace_for_demo(name: str, data_dir: Path) -> Path:
@@ -40,7 +48,7 @@ def _workspace_for_demo(name: str, data_dir: Path) -> Path:
     raise HTTPException(status_code=400, detail="unknown demo")
 
 
-def _run_demo(name: str, data_dir: Path) -> dict[str, Any]:
+def _run_demo(name: str, data_dir: Path) -> tuple[dict[str, Any], AgentLoop]:
     workspace = _workspace_for_demo(name, data_dir)
     store = SqliteStore(data_dir / "agent.db")
     policy = load_policy("strict_demo", Path("config/policies"))
@@ -63,7 +71,7 @@ def _run_demo(name: str, data_dir: Path) -> dict[str, Any]:
         llm_mode="mock",
         max_steps=8,
     )
-    return loop.run(f"demo {name}").model_dump(mode="json")
+    return loop.run(f"demo {name}").model_dump(mode="json"), loop
 
 
 def _frontend_dist_dir() -> Path:
@@ -78,6 +86,7 @@ def _mount_frontend(app: FastAPI) -> None:
 
 def create_app(data_dir: Path | None = None) -> FastAPI:
     app = FastAPI(title="CodingAgent Harness")
+    app.state.pending_loops = {}
     runtime_dir = data_dir or Path(os.environ.get("CODING_AGENT_DATA_DIR", ".coding-agent-data"))
 
     def ensure_runtime_dir() -> Path:
@@ -86,7 +95,10 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 
     @app.post("/api/runs/demo")
     def create_demo_run(request: DemoRequest) -> dict[str, Any]:
-        return _run_demo(request.name, ensure_runtime_dir())
+        result, loop = _run_demo(request.name, ensure_runtime_dir())
+        if result["status"] == RunStatus.WAITING_APPROVAL.value:
+            app.state.pending_loops[result["run_id"]] = loop
+        return result
 
     @app.get("/api/runs/{run_id}/events")
     def run_events(run_id: str) -> StreamingResponse:
@@ -109,8 +121,34 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
         return CredentialService.from_env().status()
 
     @app.post("/api/approvals/{approval_id}/decision")
-    def approval_decision(approval_id: str) -> dict[str, str]:
-        return {"approval_id": approval_id, "state": "recorded"}
+    def approval_decision(
+        approval_id: str, request: ApprovalDecisionRequest
+    ) -> dict[str, object]:
+        store = SqliteStore(ensure_runtime_dir() / "agent.db")
+        approvals = ApprovalService(store)
+        try:
+            approval = approvals.get(approval_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="approval not found") from exc
+        loop = app.state.pending_loops.get(approval.run_id)
+        if loop is None:
+            raise HTTPException(status_code=409, detail="approval run is not active")
+        try:
+            summary = loop.resolve_approval(
+                approval_id,
+                decision=request.decision,
+                reviewer=request.reviewer,
+                reason=request.reason,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        if summary.status != RunStatus.WAITING_APPROVAL.value:
+            app.state.pending_loops.pop(approval.run_id, None)
+        return {
+            "approval_id": approval_id,
+            "state": approvals.get(approval_id).state.value,
+            "run": summary.model_dump(mode="json"),
+        }
 
     _mount_frontend(app)
 

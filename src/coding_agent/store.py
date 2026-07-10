@@ -6,7 +6,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from coding_agent.domain import MemoryRecord, RunStatus
+from coding_agent.domain import ApprovalRequest, ApprovalState, MemoryRecord, RunStatus, ToolResult
 
 
 class SqliteStore:
@@ -52,6 +52,23 @@ class SqliteStore:
                     sensitive integer not null,
                     created_at text default current_timestamp
                 );
+                create table if not exists approvals (
+                    id text primary key,
+                    run_id text not null,
+                    action_id text not null,
+                    action_json text not null,
+                    state text not null,
+                    rules_json text not null,
+                    reason text not null,
+                    step_index integer not null,
+                    feedback_json text not null,
+                    reviewer text,
+                    reviewer_reason text,
+                    execution_result_json text,
+                    created_at text default current_timestamp,
+                    decided_at text,
+                    executed_at text
+                );
                 """
             )
 
@@ -70,6 +87,118 @@ class SqliteStore:
     def update_run_status(self, run_id: str, status: RunStatus) -> None:
         with self._connect() as conn:
             conn.execute("update runs set status = ? where id = ?", (status.value, run_id))
+
+    def get_run(self, run_id: str) -> dict[str, Any]:
+        with self._connect() as conn:
+            row = conn.execute("select * from runs where id = ?", (run_id,)).fetchone()
+        if row is None:
+            raise KeyError(run_id)
+        return dict(row)
+
+    def create_approval(self, request: ApprovalRequest) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                (
+                    "insert into approvals(id, run_id, action_id, action_json, state, rules_json, "
+                    "reason, step_index, feedback_json) values (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                ),
+                (
+                    request.id,
+                    request.run_id,
+                    request.action_id,
+                    request.action.model_dump_json(),
+                    request.state.value,
+                    json.dumps(request.rules, ensure_ascii=False),
+                    request.reason,
+                    request.step_index,
+                    json.dumps(
+                        [item.model_dump(mode="json") for item in request.feedback],
+                        ensure_ascii=False,
+                    ),
+                ),
+            )
+
+    def get_approval(self, approval_id: str) -> ApprovalRequest:
+        with self._connect() as conn:
+            row = conn.execute("select * from approvals where id = ?", (approval_id,)).fetchone()
+        if row is None:
+            raise KeyError(approval_id)
+        return self._approval_from_row(row)
+
+    def list_approvals(self, state: ApprovalState | None = None) -> list[ApprovalRequest]:
+        query = "select * from approvals"
+        params: tuple[str, ...] = ()
+        if state is not None:
+            query += " where state = ?"
+            params = (state.value,)
+        query += " order by created_at, id"
+        with self._connect() as conn:
+            rows = conn.execute(query, params).fetchall()
+        return [self._approval_from_row(row) for row in rows]
+
+    def transition_approval(
+        self,
+        approval_id: str,
+        state: ApprovalState,
+        reviewer: str,
+        reason: str,
+    ) -> ApprovalRequest:
+        with self._connect() as conn:
+            cursor = conn.execute(
+                (
+                    "update approvals set state = ?, reviewer = ?, reviewer_reason = ?, "
+                    "decided_at = current_timestamp where id = ? and state = ?"
+                ),
+                (state.value, reviewer, reason, approval_id, ApprovalState.PENDING.value),
+            )
+            if cursor.rowcount != 1:
+                exists = conn.execute(
+                    "select state from approvals where id = ?", (approval_id,)
+                ).fetchone()
+                if exists is None:
+                    raise KeyError(approval_id)
+                raise ValueError(
+                    f"approval must be pending; current state is {exists['state']}"
+                )
+        return self.get_approval(approval_id)
+
+    def record_approval_execution(
+        self, approval_id: str, result: ToolResult
+    ) -> ApprovalRequest:
+        with self._connect() as conn:
+            cursor = conn.execute(
+                (
+                    "update approvals set execution_result_json = ?, executed_at = current_timestamp "
+                    "where id = ? and state = ? and execution_result_json is null"
+                ),
+                (result.model_dump_json(), approval_id, ApprovalState.APPROVED_ONCE.value),
+            )
+            if cursor.rowcount != 1:
+                raise ValueError("approved action has already been executed or is not approved")
+        return self.get_approval(approval_id)
+
+    @staticmethod
+    def _approval_from_row(row: sqlite3.Row) -> ApprovalRequest:
+        return ApprovalRequest.model_validate(
+            {
+                "id": row["id"],
+                "run_id": row["run_id"],
+                "action_id": row["action_id"],
+                "action": json.loads(row["action_json"]),
+                "state": row["state"],
+                "rules": json.loads(row["rules_json"]),
+                "reason": row["reason"],
+                "step_index": row["step_index"],
+                "feedback": json.loads(row["feedback_json"]),
+                "reviewer": row["reviewer"],
+                "reviewer_reason": row["reviewer_reason"],
+                "execution_result": (
+                    json.loads(row["execution_result_json"])
+                    if row["execution_result_json"]
+                    else None
+                ),
+            }
+        )
 
     def append_event(self, run_id: str, event_type: str, payload: dict[str, Any]) -> None:
         with self._connect() as conn:

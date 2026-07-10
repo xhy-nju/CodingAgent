@@ -1,13 +1,28 @@
 from pathlib import Path
 
+import pytest
+
 from coding_agent.agent_loop import AgentLoop
+from coding_agent.approvals import ApprovalService
+from coding_agent.domain import ApprovalState, ToolResult
 from coding_agent.events import EventBus
 from coding_agent.guardrails import GuardrailEngine
-from coding_agent.llm import MockLLMProvider
+from coding_agent.llm import LLMContext, LLMProvider, MockLLMProvider
 from coding_agent.memory import MemoryService
 from coding_agent.policies import load_policy
 from coding_agent.store import SqliteStore
+from coding_agent.tools.base import ToolSpec
 from coding_agent.tools.dispatcher import build_default_dispatcher
+
+
+class ApprovalThenFinalProvider(LLMProvider):
+    def next_action(self, context: LLMContext) -> str:
+        if context.step_index == 0:
+            return (
+                '{"kind":"tool","tool":"run_command","args":{"command":["pytest"]},'
+                '"reason":"run approved command","expectation":"command result"}'
+            )
+        return '{"kind":"final","args":{},"reason":"done","expectation":"stop"}'
 
 
 def _loop(tmp_path: Path, workspace: Path, script_name: str) -> AgentLoop:
@@ -54,3 +69,79 @@ def test_mock_loop_fixes_sample_after_feedback(tmp_path: Path) -> None:
 
     assert summary.status == "succeeded"
     assert "return a + b" in (workspace / "calculator.py").read_text(encoding="utf-8")
+
+
+def _approval_loop(tmp_path: Path) -> tuple[AgentLoop, SqliteStore, list[str]]:
+    workspace = tmp_path / "approval-workspace"
+    workspace.mkdir()
+    store = SqliteStore(tmp_path / "approval.db")
+    policy = load_policy("strict_demo", Path("config/policies"))
+    memory = MemoryService(store)
+    dispatcher = build_default_dispatcher(
+        GuardrailEngine(policy, workspace), workspace, policy, memory=memory
+    )
+    calls: list[str] = []
+
+    def approved_command(args, context) -> ToolResult:
+        calls.append("executed")
+        return ToolResult(status="ok", stdout_summary="approved command ran")
+
+    dispatcher.register(
+        ToolSpec(name="run_command", description="count approved execution", handler=approved_command)
+    )
+    return (
+        AgentLoop(
+            store=store,
+            events=EventBus(store),
+            memory=memory,
+            dispatcher=dispatcher,
+            llm=ApprovalThenFinalProvider(),
+            workspace=workspace,
+            policy_profile="strict_demo",
+            llm_mode="mock",
+            max_steps=3,
+        ),
+        store,
+        calls,
+    )
+
+
+def test_approved_action_executes_exactly_once_then_run_resumes(tmp_path: Path) -> None:
+    loop, store, calls = _approval_loop(tmp_path)
+
+    waiting = loop.run("approval workflow")
+    approval = ApprovalService(store).list_pending()[0]
+
+    assert waiting.status == "waiting_approval"
+    assert waiting.pending_approval_id == approval.id
+    assert store.get_run(waiting.run_id)["status"] == "waiting_approval"
+    assert calls == []
+
+    resumed = loop.resolve_approval(
+        approval.id, decision="approve", reviewer="admin", reason="command reviewed"
+    )
+
+    assert resumed.status == "succeeded"
+    assert calls == ["executed"]
+    assert ApprovalService(store).get(approval.id).state is ApprovalState.APPROVED_ONCE
+    with pytest.raises(ValueError, match="pending"):
+        loop.resolve_approval(
+            approval.id, decision="approve", reviewer="admin", reason="duplicate"
+        )
+    assert calls == ["executed"]
+
+
+def test_rejected_action_never_executes_and_rejection_is_feedback(tmp_path: Path) -> None:
+    loop, store, calls = _approval_loop(tmp_path)
+    waiting = loop.run("approval workflow")
+    approval = ApprovalService(store).list_pending()[0]
+
+    resumed = loop.resolve_approval(
+        approval.id, decision="reject", reviewer="admin", reason="risk not accepted"
+    )
+
+    assert waiting.status == "waiting_approval"
+    assert resumed.status == "succeeded"
+    assert calls == []
+    assert any(item.type == "approval_rejected" for item in resumed.feedback)
+    assert ApprovalService(store).get(approval.id).state is ApprovalState.REJECTED

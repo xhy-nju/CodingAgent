@@ -70,7 +70,17 @@ def test_credential_status_reflects_environment(tmp_path: Path, monkeypatch) -> 
 def test_approval_decision_endpoint_records_state(tmp_path: Path) -> None:
     client = TestClient(create_app(data_dir=tmp_path))
 
-    response = client.post("/api/approvals/approval-1/decision")
+    response = client.post(
+        "/api/approvals/approval-does-not-exist/decision",
+        json={"decision": "reject", "reviewer": "admin", "reason": "not approved"},
+    )
 
-    assert response.status_code == 200
-    assert response.json() == {"approval_id": "approval-1", "state": "recorded"}
+    assert response.status_code == 404
+
+
+def test_approval_decision_requires_explicit_review_input(tmp_path: Path) -> None:
+    client = TestClient(create_app(data_dir=tmp_path))
+
+    response = client.post("/api/approvals/approval-1/decision", json={})
+
+    assert response.status_code == 422

@@ -97,12 +97,17 @@ class ApprovalRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     id: str
+    run_id: str
     action_id: str
+    action: Action
     state: ApprovalState
     rules: list[str]
     reason: str
+    step_index: int = 0
+    feedback: list[FeedbackSignal] = Field(default_factory=list)
     reviewer: str | None = None
     reviewer_reason: str | None = None
+    execution_result: ToolResult | None = None
 
 
 class MemoryRecord(BaseModel):

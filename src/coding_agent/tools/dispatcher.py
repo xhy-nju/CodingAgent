@@ -50,6 +50,11 @@ class ToolDispatcher:
             return ToolResult(status="failed", stderr_summary=f"unknown tool: {action.tool}")
         return self._tools[action.tool].handler(action.args, self.context)
 
+    def execute_approved(self, action: Action) -> ToolResult:
+        if not action.tool or action.tool not in self._tools:
+            return ToolResult(status="failed", stderr_summary=f"unknown tool: {action.tool}")
+        return self._tools[action.tool].handler(action.args, self.context)
+
 
 def memory_search(args: dict[str, object], context: ToolContext) -> ToolResult:
     if context.memory is None:
