@@ -89,6 +89,14 @@ class AgentLoop:
                 self.store.update_run_status(run_id, RunStatus.SUCCEEDED)
                 self.events.append_event(run_id, EventType.RUN_FINISHED, {"status": "succeeded"})
                 return RunSummary(run_id=run_id, status="succeeded", feedback=feedback)
+            if action.kind is ActionKind.REMEMBER:
+                action = action.model_copy(
+                    update={
+                        "kind": ActionKind.TOOL,
+                        "tool": "memory_write",
+                        "args": action.args | {"source_run_id": run_id},
+                    }
+                )
 
             guardrail = self.dispatcher.evaluate(action)
             self.events.append_event(

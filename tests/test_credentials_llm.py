@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
+
 from coding_agent.credentials import CredentialService
 from coding_agent.llm import LLMContext, RealLLMProvider
 
@@ -90,4 +92,28 @@ def test_real_provider_posts_openai_compatible_request(monkeypatch) -> None:
     assert captured["headers"] == {"Authorization": "Bearer provider-token-for-test"}
     assert captured["json"]["model"] == "demo-model"
     assert captured["json"]["messages"][1]["content"] == "Task: fix tests\nStep: 2"
+    assert captured["json"]["max_tokens"] == 512
     assert captured["timeout"] == 30
+
+
+@pytest.mark.parametrize("content", [None, "", "   ", 42])
+def test_real_provider_rejects_null_empty_or_non_string_content(
+    monkeypatch, content: object
+) -> None:
+    class FakeResponse:
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict[str, Any]:
+            return {"choices": [{"message": {"content": content}}]}
+
+    monkeypatch.setattr("coding_agent.llm.httpx.post", lambda *args, **kwargs: FakeResponse())
+    provider = RealLLMProvider(
+        provider_token="provider-token-for-test",
+        base_url="https://example.test/v1",
+        model="demo-model",
+        enabled=True,
+    )
+
+    with pytest.raises(ValueError, match="non-empty string"):
+        provider.next_action(LLMContext(task="probe", step_index=0, feedback=[]))

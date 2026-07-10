@@ -102,6 +102,7 @@ def probe_real_llm(provider: RealLLMProvider) -> LLMProbeResult:
                 ),
                 step_index=0,
                 feedback=[],
+                max_completion_tokens=256,
             )
         )
     except httpx.HTTPStatusError as exc:
@@ -141,6 +142,16 @@ def probe_real_llm(provider: RealLLMProvider) -> LLMProbeResult:
             error_code="invalid_provider_response",
             message="Provider returned an invalid OpenAI-compatible response",
         )
+    if not isinstance(raw, str) or not raw.strip():
+        return _result(
+            provider,
+            started_ns,
+            ok=False,
+            protocol_valid=False,
+            error_code="invalid_provider_response",
+            message="Provider returned an invalid OpenAI-compatible response",
+        )
+
     parsed = parse_action(raw)
     if not parsed.ok:
         return _result(

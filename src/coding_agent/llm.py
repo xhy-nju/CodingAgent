@@ -15,6 +15,7 @@ class LLMContext:
     step_index: int
     feedback: list[FeedbackSignal]
     memories: tuple[MemoryRecord, ...] = ()
+    max_completion_tokens: int = 512
 
 
 class LLMProvider:
@@ -133,9 +134,13 @@ class RealLLMProvider(LLMProvider):
                     },
                 ],
                 "temperature": 0,
+                "max_tokens": context.max_completion_tokens,
             },
             timeout=30,
         )
         response.raise_for_status()
         payload = response.json()
-        return str(payload["choices"][0]["message"]["content"])
+        content = payload["choices"][0]["message"]["content"]
+        if not isinstance(content, str) or not content.strip():
+            raise ValueError("provider assistant content must be a non-empty string")
+        return content

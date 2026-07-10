@@ -30,6 +30,7 @@ def make_provider(
 
 def test_probe_accepts_strict_final_action_without_exposing_raw_content(monkeypatch) -> None:
     provider = make_provider()
+    contexts = []
     raw = json.dumps(
         {
             "kind": "final",
@@ -38,7 +39,11 @@ def test_probe_accepts_strict_final_action_without_exposing_raw_content(monkeypa
             "expectation": "stop",
         }
     )
-    monkeypatch.setattr(provider, "next_action", lambda context: raw)
+    def capture(context) -> str:
+        contexts.append(context)
+        return raw
+
+    monkeypatch.setattr(provider, "next_action", capture)
 
     result = probe_real_llm(provider)
 
@@ -51,6 +56,7 @@ def test_probe_accepts_strict_final_action_without_exposing_raw_content(monkeypa
     assert result.action_kind == "final"
     assert result.error_code is None
     assert result.message == "Real LLM probe succeeded"
+    assert contexts[0].max_completion_tokens == 256
     assert raw not in result.model_dump_json()
     assert TEST_TOKEN not in result.model_dump_json()
 
@@ -91,6 +97,36 @@ def test_probe_rejects_valid_non_final_action(monkeypatch) -> None:
     assert result.action_kind == "tool"
     assert result.error_code == "protocol_error"
     assert result.message == "Probe response must be a final action"
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        '{"kind":"final","tool":"read_file","args":{},"reason":"x","expectation":"y"}',
+        '{"kind":"final","args":{"path":"x"},"reason":"x","expectation":"y"}',
+    ],
+)
+def test_probe_rejects_adversarial_final_action_shapes(monkeypatch, raw: str) -> None:
+    provider = make_provider()
+    monkeypatch.setattr(provider, "next_action", lambda context: raw)
+
+    result = probe_real_llm(provider)
+
+    assert result.ok is False
+    assert result.error_code == "protocol_error"
+
+
+@pytest.mark.parametrize("raw", [None, "", "   ", 42])
+def test_probe_classifies_invalid_content_as_provider_response(
+    monkeypatch, raw: object
+) -> None:
+    provider = make_provider()
+    monkeypatch.setattr(provider, "next_action", lambda context: raw)
+
+    result = probe_real_llm(provider)
+
+    assert result.ok is False
+    assert result.error_code == "invalid_provider_response"
 
 
 def test_probe_refuses_when_real_llm_is_disabled(monkeypatch) -> None:

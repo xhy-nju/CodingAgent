@@ -34,6 +34,17 @@ class CapturingFinalProvider(LLMProvider):
         return '{"kind":"final","args":{},"reason":"done","expectation":"stop"}'
 
 
+class RememberThenFinalProvider(LLMProvider):
+    def next_action(self, context: LLMContext) -> str:
+        if context.step_index == 0:
+            return (
+                '{"kind":"remember","args":{"content":"Prefer focused tests",'
+                '"tags":["pytest"],"scope":"project"},"reason":"save lesson",'
+                '"expectation":"memory persisted"}'
+            )
+        return '{"kind":"final","args":{},"reason":"done","expectation":"stop"}'
+
+
 def _loop(tmp_path: Path, workspace: Path, script_name: str) -> AgentLoop:
     store = SqliteStore(tmp_path / "agent.db")
     policy = load_policy("strict_demo", Path("config/policies"))
@@ -193,4 +204,35 @@ def test_scoped_memory_is_injected_before_provider_call(tmp_path: Path) -> None:
 
     assert [record.content for record in provider.contexts[0].memories] == [
         "Run the narrow pytest target first"
+    ]
+
+
+def test_remember_action_writes_policy_scoped_memory_and_continues(tmp_path: Path) -> None:
+    workspace = tmp_path / "remember-workspace"
+    workspace.mkdir()
+    store = SqliteStore(tmp_path / "remember-agent.db")
+    policy = load_policy("strict_demo", Path("config/policies"))
+    memory = MemoryService(store)
+    loop = AgentLoop(
+        store=store,
+        events=EventBus(store),
+        memory=memory,
+        dispatcher=build_default_dispatcher(
+            GuardrailEngine(policy, workspace), workspace, policy, memory=memory
+        ),
+        llm=RememberThenFinalProvider(),
+        workspace=workspace,
+        policy_profile="strict_demo",
+        llm_mode="mock",
+        max_steps=2,
+    )
+
+    summary = loop.run("remember a lesson")
+
+    assert summary.status == "succeeded"
+    assert [record.content for record in memory.search([], "", scope="project")] == [
+        "Prefer focused tests"
+    ]
+    assert "memory.written" in [
+        event["event_type"] for event in store.list_events(summary.run_id)
     ]

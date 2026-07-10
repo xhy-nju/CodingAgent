@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+import tempfile
 from pathlib import Path
 
 from coding_agent.domain import ToolResult
@@ -39,11 +41,31 @@ def read_file(args: dict[str, object], context: ToolContext) -> ToolResult:
 def write_file(args: dict[str, object], context: ToolContext) -> ToolResult:
     relative = str(args["path"])
     content = str(args["content"])
+    encoded = content.encode("utf-8")
+    if len(encoded) > context.policy.max_file_bytes:
+        return ToolResult(
+            status="failed",
+            stderr_summary=(
+                f"content exceeds maximum file size of {context.policy.max_file_bytes} bytes"
+            ),
+        )
     path = _resolve_inside(context.workspace, relative)
     existed = path.exists()
     before = path.read_text(encoding="utf-8") if existed else ""
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding="utf-8")
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".tmp", dir=path.parent
+    )
+    temporary_path = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "wb") as handle:
+            handle.write(encoded)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary_path, path)
+    except Exception:
+        temporary_path.unlink(missing_ok=True)
+        raise
     if existed:
         diff_summary = (
             f"updated {relative}: {len(before.splitlines())} lines -> "

@@ -3,7 +3,7 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class ActionKind(StrEnum):
@@ -61,6 +61,47 @@ class Action(BaseModel):
     args: dict[str, Any] = Field(default_factory=dict)
     reason: str
     expectation: str
+
+    @model_validator(mode="after")
+    def validate_kind_payload(self) -> "Action":
+        if self.kind is ActionKind.TOOL:
+            if not self.tool or not self.tool.strip():
+                raise ValueError("tool actions require a non-empty tool name")
+            return self
+
+        if self.tool is not None:
+            raise ValueError(f"{self.kind.value} actions forbid tool")
+        if self.kind is ActionKind.FINAL:
+            if self.args:
+                raise ValueError("final actions require empty args")
+            return self
+        if self.kind is ActionKind.REMEMBER:
+            allowed = {"scope", "tags", "content", "sensitive", "confidence"}
+            if set(self.args) - allowed:
+                raise ValueError("remember action has unsupported args")
+            content = self.args.get("content")
+            if not isinstance(content, str) or not content.strip():
+                raise ValueError("remember actions require non-empty content")
+            tags = self.args.get("tags", [])
+            if not isinstance(tags, list) or not all(isinstance(tag, str) for tag in tags):
+                raise ValueError("remember action tags must be a string list")
+            scope = self.args.get("scope", "project")
+            if not isinstance(scope, str) or not scope.strip():
+                raise ValueError("remember action scope must be a non-empty string")
+            return self
+        if self.kind is ActionKind.REQUEST_USER:
+            allowed = {"question", "choices"}
+            if set(self.args) - allowed:
+                raise ValueError("request_user action has unsupported args")
+            question = self.args.get("question")
+            if not isinstance(question, str) or not question.strip():
+                raise ValueError("request_user actions require a non-empty question")
+            choices = self.args.get("choices", [])
+            if not isinstance(choices, list) or not all(
+                isinstance(choice, str) for choice in choices
+            ):
+                raise ValueError("request_user choices must be a string list")
+        return self
 
 
 class GuardrailDecision(BaseModel):

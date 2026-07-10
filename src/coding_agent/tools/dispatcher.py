@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import subprocess
+import time
 from pathlib import Path
 
 from coding_agent.domain import (
@@ -52,14 +54,44 @@ class ToolDispatcher:
                 stderr_summary=decision.message,
                 artifacts={"rules": decision.rules},
             )
-        if not action.tool or action.tool not in self._tools:
-            return ToolResult(status="failed", stderr_summary=f"unknown tool: {action.tool}")
-        return self._tools[action.tool].handler(action.args, self.context)
+        return self._execute(action)
 
     def execute_approved(self, action: Action) -> ToolResult:
+        return self._execute(action)
+
+    def _execute(self, action: Action) -> ToolResult:
         if not action.tool or action.tool not in self._tools:
             return ToolResult(status="failed", stderr_summary=f"unknown tool: {action.tool}")
-        return self._tools[action.tool].handler(action.args, self.context)
+        started = time.monotonic()
+        try:
+            return self._tools[action.tool].handler(action.args, self.context)
+        except subprocess.TimeoutExpired:
+            duration_ms = int((time.monotonic() - started) * 1000)
+            message = "tool execution timed out"
+            return ToolResult(
+                status="timeout",
+                stderr_summary=message,
+                duration_ms=duration_ms,
+                feedback=[
+                    FeedbackSignal(
+                        type=FeedbackType.TIMEOUT,
+                        severity="error",
+                        summary=message,
+                    )
+                ],
+            )
+        except FileNotFoundError:
+            return ToolResult(
+                status="failed", stderr_summary="required executable or file was not found"
+            )
+        except UnicodeError:
+            return ToolResult(
+                status="failed", stderr_summary="tool output or file is not valid UTF-8"
+            )
+        except OSError:
+            return ToolResult(status="failed", stderr_summary="tool I/O operation failed")
+        except (KeyError, TypeError, ValueError):
+            return ToolResult(status="failed", stderr_summary="tool arguments were invalid")
 
 
 def memory_search(args: dict[str, object], context: ToolContext) -> ToolResult:
