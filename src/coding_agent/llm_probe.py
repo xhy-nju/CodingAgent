@@ -3,6 +3,7 @@ from __future__ import annotations
 import time
 from typing import Literal
 
+import httpx
 from pydantic import BaseModel, ConfigDict
 
 from coding_agent.action_parser import parse_action
@@ -38,6 +39,16 @@ class LLMProbeResult(BaseModel):
     message: str
 
 
+def _http_failure(status_code: int) -> tuple[ProbeErrorCode, str]:
+    if status_code in {401, 403}:
+        return "authentication_failed", "Provider rejected the configured credentials"
+    if status_code == 404:
+        return "model_or_endpoint_not_found", "Provider model or endpoint was not found"
+    if 400 <= status_code < 500:
+        return "provider_rejected_request", f"Provider rejected the probe request (HTTP {status_code})"
+    return "provider_unavailable", f"Provider is unavailable (HTTP {status_code})"
+
+
 def _result(
     provider: RealLLMProvider,
     started_ns: int,
@@ -63,17 +74,73 @@ def _result(
 
 def probe_real_llm(provider: RealLLMProvider) -> LLMProbeResult:
     started_ns = time.perf_counter_ns()
-    raw = provider.next_action(
-        LLMContext(
-            task=(
-                "Connectivity check. Return exactly this JSON object and nothing else: "
-                '{"kind":"final","args":{},"reason":"real llm probe",'
-                '"expectation":"stop"}'
-            ),
-            step_index=0,
-            feedback=[],
+    if not provider.enabled:
+        return _result(
+            provider,
+            started_ns,
+            ok=False,
+            protocol_valid=False,
+            error_code="real_llm_disabled",
+            message="Real LLM is disabled",
         )
-    )
+    if not provider.provider_token:
+        return _result(
+            provider,
+            started_ns,
+            ok=False,
+            protocol_valid=False,
+            error_code="api_key_missing",
+            message="OPENAI_API_KEY is not configured",
+        )
+    try:
+        raw = provider.next_action(
+            LLMContext(
+                task=(
+                    "Connectivity check. Return exactly this JSON object and nothing else: "
+                    '{"kind":"final","args":{},"reason":"real llm probe",'
+                    '"expectation":"stop"}'
+                ),
+                step_index=0,
+                feedback=[],
+            )
+        )
+    except httpx.HTTPStatusError as exc:
+        error_code, message = _http_failure(exc.response.status_code)
+        return _result(
+            provider,
+            started_ns,
+            ok=False,
+            protocol_valid=False,
+            error_code=error_code,
+            message=message,
+        )
+    except httpx.TimeoutException:
+        return _result(
+            provider,
+            started_ns,
+            ok=False,
+            protocol_valid=False,
+            error_code="request_timeout",
+            message="Real LLM probe timed out",
+        )
+    except httpx.RequestError:
+        return _result(
+            provider,
+            started_ns,
+            ok=False,
+            protocol_valid=False,
+            error_code="network_error",
+            message="Real LLM provider could not be reached",
+        )
+    except (KeyError, IndexError, TypeError, ValueError):
+        return _result(
+            provider,
+            started_ns,
+            ok=False,
+            protocol_valid=False,
+            error_code="invalid_provider_response",
+            message="Provider returned an invalid OpenAI-compatible response",
+        )
     parsed = parse_action(raw)
     if not parsed.ok:
         return _result(

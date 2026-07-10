@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import json
 
+import httpx
+import pytest
+
 from coding_agent.llm import RealLLMProvider
 from coding_agent.llm_probe import probe_real_llm
 
@@ -85,3 +88,89 @@ def test_probe_rejects_valid_non_final_action(monkeypatch) -> None:
     assert result.action_kind == "tool"
     assert result.error_code == "protocol_error"
     assert result.message == "Probe response must be a final action"
+
+
+def test_probe_refuses_when_real_llm_is_disabled() -> None:
+    result = probe_real_llm(make_provider(enabled=False))
+
+    assert result.ok is False
+    assert result.error_code == "real_llm_disabled"
+    assert result.message == "Real LLM is disabled"
+
+
+def test_probe_refuses_when_api_key_is_missing() -> None:
+    result = probe_real_llm(make_provider(token=None))
+
+    assert result.ok is False
+    assert result.error_code == "api_key_missing"
+    assert result.message == "OPENAI_API_KEY is not configured"
+
+
+@pytest.mark.parametrize(
+    ("status_code", "error_code"),
+    [
+        (401, "authentication_failed"),
+        (403, "authentication_failed"),
+        (404, "model_or_endpoint_not_found"),
+        (400, "provider_rejected_request"),
+        (503, "provider_unavailable"),
+    ],
+)
+def test_probe_classifies_http_status_without_leaking_token(
+    monkeypatch,
+    status_code: int,
+    error_code: str,
+) -> None:
+    provider = make_provider()
+    request = httpx.Request("POST", "https://example.test/v1/chat/completions")
+    response = httpx.Response(status_code, request=request)
+
+    def fail(context) -> str:
+        raise httpx.HTTPStatusError("provider failure", request=request, response=response)
+
+    monkeypatch.setattr(provider, "next_action", fail)
+
+    result = probe_real_llm(provider)
+
+    assert result.ok is False
+    assert result.error_code == error_code
+    assert TEST_TOKEN not in result.model_dump_json()
+
+
+@pytest.mark.parametrize(
+    ("error", "error_code"),
+    [
+        (
+            httpx.ReadTimeout(
+                "timeout provider-token-for-test",
+                request=httpx.Request("POST", "https://example.test/v1/chat/completions"),
+            ),
+            "request_timeout",
+        ),
+        (
+            httpx.ConnectError(
+                "network provider-token-for-test",
+                request=httpx.Request("POST", "https://example.test/v1/chat/completions"),
+            ),
+            "network_error",
+        ),
+        (KeyError("provider-token-for-test"), "invalid_provider_response"),
+    ],
+)
+def test_probe_classifies_transport_and_envelope_errors_without_leaking_token(
+    monkeypatch,
+    error: Exception,
+    error_code: str,
+) -> None:
+    provider = make_provider()
+
+    def fail(context) -> str:
+        raise error
+
+    monkeypatch.setattr(provider, "next_action", fail)
+
+    result = probe_real_llm(provider)
+
+    assert result.ok is False
+    assert result.error_code == error_code
+    assert TEST_TOKEN not in result.model_dump_json()
