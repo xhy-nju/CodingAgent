@@ -11,7 +11,8 @@ from coding_agent.agent_loop import AgentLoop
 from coding_agent.credentials import CredentialService
 from coding_agent.events import EventBus
 from coding_agent.guardrails import GuardrailEngine
-from coding_agent.llm import MockLLMProvider
+from coding_agent.llm import MockLLMProvider, RealLLMProvider
+from coding_agent.llm_probe import probe_real_llm
 from coding_agent.memory import MemoryService
 from coding_agent.policies import load_policy
 from coding_agent.store import SqliteStore
@@ -20,6 +21,8 @@ from coding_agent.tools.dispatcher import build_default_dispatcher
 app = typer.Typer(help="CodingAgent harness CLI")
 credentials_app = typer.Typer(help="Credential commands")
 app.add_typer(credentials_app, name="credentials")
+llm_app = typer.Typer(help="LLM provider commands")
+app.add_typer(llm_app, name="llm")
 
 
 @app.callback()
@@ -85,3 +88,11 @@ def credentials_status() -> None:
 @app.command("credentials-status")
 def credentials_status_alias() -> None:
     typer.echo(_credential_status_json())
+
+
+@llm_app.command("probe")
+def llm_probe() -> None:
+    result = probe_real_llm(RealLLMProvider.from_env())
+    typer.echo(json.dumps(result.model_dump(mode="json"), ensure_ascii=False, indent=2))
+    if not result.ok:
+        raise typer.Exit(code=1)
