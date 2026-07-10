@@ -22,9 +22,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - run: npm install --no-package-lock
+      - run: npm ci
         working-directory: frontend
-      - run: npm run test -- run
+      - run: npm test
         working-directory: frontend
       - run: npm run build
         working-directory: frontend

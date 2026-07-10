@@ -23,8 +23,13 @@ def test_runtime_distribution_includes_pytest() -> None:
 
 
 def test_distribution_files_define_safe_docker_runtime() -> None:
-    assert "CMD [\"uvicorn\", \"coding_agent.api:app\"" in read("Dockerfile")
-    assert "COPY --from=frontend-build /app/frontend/dist ./frontend/dist" in read("Dockerfile")
+    dockerfile = read("Dockerfile")
+    assert "CMD [\"uvicorn\", \"coding_agent.api:app\"" in dockerfile
+    assert "COPY --from=frontend-build /app/frontend/dist ./frontend/dist" in dockerfile
+    assert "COPY frontend/package-lock.json ./package-lock.json" in dockerfile
+    assert "RUN npm ci" in dockerfile
+    assert "USER codingagent" in dockerfile
+    assert (ROOT / "frontend/package-lock.json").exists()
     assert "ADMIN_PASSWORD: ${ADMIN_PASSWORD:-change-this-before-deploying}" in read(
         "docker-compose.yml"
     )
@@ -40,6 +45,8 @@ def test_ci_files_cover_backend_frontend_and_docker() -> None:
     gitlab_ci = read(".gitlab-ci.yml")
 
     assert "pytest -q" in github_ci
+    assert "npm ci" in github_ci
+    assert "npm test" in github_ci
     assert "npm run build" in github_ci
     assert "docker build -t coding-agent:ci ." in github_ci
     assert "unit-test:" in gitlab_ci

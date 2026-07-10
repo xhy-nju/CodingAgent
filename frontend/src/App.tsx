@@ -79,7 +79,7 @@ const demoOptions: Array<{
   {
     name: "dangerous-action",
     title: "Run guardrail demo",
-    subtitle: "Policy check, redaction, HITL approval",
+    subtitle: "Policy check and hard guardrail blocking",
     Icon: Shield,
   },
 ];

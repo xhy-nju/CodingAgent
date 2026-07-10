@@ -45,6 +45,7 @@ describe("App", () => {
 
     expect(await screen.findByText("CodingAgent")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Run bugfix demo/i })).toBeInTheDocument();
+    expect(screen.getByText("Policy check and hard guardrail blocking")).toBeInTheDocument();
   });
 
   it("starts a demo from the dashboard", async () => {

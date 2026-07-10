@@ -48,7 +48,7 @@ uvicorn coding_agent.api:app --reload
 
 ```bash
 cd frontend
-npm install --no-package-lock
+npm ci
 npm run dev
 ```
 
@@ -60,7 +60,7 @@ npm run dev
 cp .env.example .env
 ```
 
-编辑 `.env`，至少把 `ADMIN_PASSWORD` 改成非默认值。公开演示时建议保持：
+`ADMIN_PASSWORD` 当前是部署预留项，应用尚未实施管理员认证。不要把服务直接暴露到公网；如需远程访问，应先在反向代理层配置认证。公开演示时保持：
 
 ```env
 ENABLE_REAL_LLM=false
@@ -107,10 +107,10 @@ Docker 版本会在 `8000` 端口同时提供 API 和构建后的 WebUI。
 
 1. 在安全组中开放选定端口，默认示例是 `8000`。
 2. 服务器上只保留 `.env`，不要把真实 key 提交到仓库。
-3. 设置非默认 `ADMIN_PASSWORD`。
+3. 在完成应用级管理员认证前，通过反向代理认证限制访问；`ADMIN_PASSWORD` 目前仅为预留配置。
 4. 公开演示保持 `ENABLE_REAL_LLM=false`，避免误消耗真实模型额度。
 5. 使用 `docker compose logs -f coding-agent` 查看运行日志。
-6. 如需启用真实模型，设置 `OPENAI_API_KEY`、`OPENAI_BASE_URL`、`OPENAI_MODEL`，并显式设置 `ENABLE_REAL_LLM=true`。
+6. 真实模型探测仅允许通过容器内 CLI 运行，不提供浏览器执行入口。
 
 ## CI
 
