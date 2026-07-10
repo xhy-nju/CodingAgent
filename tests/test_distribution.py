@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import tomllib
 from pathlib import Path
 
 from starlette.testclient import TestClient
@@ -12,6 +13,13 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def read(path: str) -> str:
     return (ROOT / path).read_text(encoding="utf-8")
+
+
+def test_runtime_distribution_includes_pytest() -> None:
+    with (ROOT / "pyproject.toml").open("rb") as project_file:
+        data = tomllib.load(project_file)
+
+    assert "pytest>=8.2.0" in data["project"]["dependencies"]
 
 
 def test_distribution_files_define_safe_docker_runtime() -> None:
