@@ -13,14 +13,24 @@ import {
   TerminalSquare,
   XCircle,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   createDemoRun,
+  fetchApprovals,
   fetchCredentialStatus,
+  fetchMemory,
   fetchPolicies,
   openRunEventSource,
 } from "./api";
-import type { CredentialStatus, FeedbackSignal, PolicyList, RunSummary } from "./types";
+import {
+  RUN_EVENT_TYPES,
+  type ApprovalRecord,
+  type CredentialStatus,
+  type FeedbackSignal,
+  type MemoryRecord,
+  type PolicyList,
+  type RunSummary,
+} from "./types";
 
 type Tab =
   | "dashboard"
@@ -52,16 +62,6 @@ const tabs: TabSpec[] = [
   { id: "policies", label: "Policies", Icon: Shield },
   { id: "credentials", label: "Credentials", Icon: KeyRound },
   { id: "settings", label: "Settings", Icon: Settings },
-];
-
-const runEventTypes = [
-  "run.started",
-  "tool.called",
-  "guardrail.checked",
-  "approval.requested",
-  "memory.written",
-  "feedback.recorded",
-  "run.finished",
 ];
 
 const demoOptions: Array<{
@@ -149,19 +149,23 @@ export default function App() {
   const [credentials, setCredentials] = useState<CredentialStatus | null>(null);
   const [run, setRun] = useState<RunSummary | null>(null);
   const [events, setEvents] = useState<RunEvent[]>([]);
+  const [approvals, setApprovals] = useState<ApprovalRecord[]>([]);
+  const [memories, setMemories] = useState<MemoryRecord[]>([]);
   const [busyDemo, setBusyDemo] = useState<DemoName | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
 
-    Promise.all([fetchPolicies(), fetchCredentialStatus()])
-      .then(([policyList, credentialStatus]) => {
+    Promise.all([fetchPolicies(), fetchCredentialStatus(), fetchApprovals(), fetchMemory()])
+      .then(([policyList, credentialStatus, approvalList, memoryList]) => {
         if (!isMounted) {
           return;
         }
         setPolicies(policyList);
         setCredentials(credentialStatus);
+        setApprovals(approvalList.approvals);
+        setMemories(memoryList.records);
       })
       .catch((reason: unknown) => {
         if (isMounted) {
@@ -193,30 +197,12 @@ export default function App() {
       );
     };
 
-    runEventTypes.forEach((eventType) => source.addEventListener(eventType, handleEvent));
+    RUN_EVENT_TYPES.forEach((eventType) => source.addEventListener(eventType, handleEvent));
 
     return () => {
       source.close();
     };
   }, [run?.run_id]);
-
-  const approvalItems = useMemo(
-    () =>
-      run?.feedback.filter((signal) => {
-        const text = `${signal.type} ${signal.summary}`.toLowerCase();
-        return text.includes("approval") || text.includes("hitl") || text.includes("dangerous");
-      }) ?? [],
-    [run?.feedback],
-  );
-
-  const memoryItems = useMemo(
-    () =>
-      run?.feedback.filter((signal) => {
-        const text = `${signal.type} ${signal.summary}`.toLowerCase();
-        return text.includes("memory") || text.includes("feedback");
-      }) ?? [],
-    [run?.feedback],
-  );
 
   const startDemo = async (name: DemoName) => {
     setBusyDemo(name);
@@ -304,9 +290,9 @@ export default function App() {
           ) : null}
           {activeTab === "run" ? <RunDetailView events={events} run={run} /> : null}
           {activeTab === "approvals" ? (
-            <ApprovalView approvalItems={approvalItems} runId={run?.run_id} />
+            <ApprovalView approvals={approvals} />
           ) : null}
-          {activeTab === "memory" ? <MemoryView memoryItems={memoryItems} runId={run?.run_id} /> : null}
+          {activeTab === "memory" ? <MemoryView memories={memories} /> : null}
           {activeTab === "policies" ? <PoliciesView policies={policyProfiles} /> : null}
           {activeTab === "credentials" ? <CredentialsView credentials={credentials} /> : null}
           {activeTab === "settings" ? (
@@ -456,47 +442,53 @@ function RunDetailView({ events, run }: { events: RunEvent[]; run: RunSummary | 
 }
 
 function ApprovalView({
-  approvalItems,
-  runId,
+  approvals,
 }: {
-  approvalItems: FeedbackSignal[];
-  runId: string | undefined;
+  approvals: ApprovalRecord[];
 }) {
   return (
     <section className="panel">
       <div className="panel-heading">
         <div>
           <span className="eyebrow">Approval Queue</span>
-          <h3>{runId ?? "No run selected"}</h3>
+          <h3>{approvals.length} pending</h3>
         </div>
         <ClipboardList aria-hidden="true" className="panel-icon" />
       </div>
-      {approvalItems.length === 0 ? (
+      {approvals.length === 0 ? (
         <p className="empty-state">No pending approvals.</p>
       ) : (
-        <FeedbackList feedback={approvalItems} />
+        <div className="feedback-list">
+          {approvals.map((approval) => (
+            <article className="feedback-item warning" key={approval.id}>
+              <div>
+                <span className="eyebrow">{approval.state}</span>
+                <h3>{approval.reason}</h3>
+              </div>
+              <span className="detail-count">{approval.rules.length} rules</span>
+            </article>
+          ))}
+        </div>
       )}
     </section>
   );
 }
 
 function MemoryView({
-  memoryItems,
-  runId,
+  memories,
 }: {
-  memoryItems: FeedbackSignal[];
-  runId: string | undefined;
+  memories: MemoryRecord[];
 }) {
   return (
     <section className="panel">
       <div className="panel-heading">
         <div>
           <span className="eyebrow">Memory</span>
-          <h3>{runId ?? "Workspace memory"}</h3>
+          <h3>Workspace memory</h3>
         </div>
         <MemoryStick aria-hidden="true" className="panel-icon" />
       </div>
-      {memoryItems.length === 0 ? (
+      {memories.length === 0 ? (
         <div className="memory-grid">
           <div>
             <span className="metric-label">Run lessons</span>
@@ -512,7 +504,17 @@ function MemoryView({
           </div>
         </div>
       ) : (
-        <FeedbackList feedback={memoryItems} />
+        <div className="feedback-list">
+          {memories.map((memory) => (
+            <article className="feedback-item info" key={memory.id}>
+              <div>
+                <span className="eyebrow">{memory.tags.join(", ") || memory.kind}</span>
+                <h3>{memory.content}</h3>
+              </div>
+              <span className="detail-count">{memory.scope}</span>
+            </article>
+          ))}
+        </div>
       )}
     </section>
   );

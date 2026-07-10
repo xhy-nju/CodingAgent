@@ -6,6 +6,7 @@ from coding_agent.domain import (
     Action,
     FeedbackSignal,
     FeedbackType,
+    GuardrailDecision,
     GuardrailDecisionType,
     ToolResult,
 )
@@ -25,8 +26,13 @@ class ToolDispatcher:
     def register(self, spec: ToolSpec) -> None:
         self._tools[spec.name] = spec
 
-    def dispatch(self, action: Action) -> ToolResult:
-        decision = self.guardrails.evaluate(action)
+    def evaluate(self, action: Action) -> GuardrailDecision:
+        return self.guardrails.evaluate(action)
+
+    def dispatch(
+        self, action: Action, decision: GuardrailDecision | None = None
+    ) -> ToolResult:
+        decision = decision or self.evaluate(action)
         if decision.decision is GuardrailDecisionType.DENY:
             return ToolResult(
                 status="blocked",

@@ -17,6 +17,21 @@ vi.mock("./api", () => ({
     model: "glm-5.2",
     real_enabled: false,
   }),
+  fetchApprovals: vi.fn().mockResolvedValue({ approvals: [] }),
+  fetchMemory: vi.fn().mockResolvedValue({
+    records: [
+      {
+        id: "mem-1",
+        scope: "project",
+        kind: "summary",
+        tags: ["pytest"],
+        content: "Use the focused calculator test",
+        source_run_id: "run-1",
+        confidence: 1,
+        sensitive: false,
+      },
+    ],
+  }),
   openRunEventSource: vi.fn(() => ({ close: vi.fn(), addEventListener: vi.fn() })),
 }));
 
@@ -47,5 +62,13 @@ describe("App", () => {
 
     expect(await screen.findByText("glm-5.2")).toBeInTheDocument();
     expect(screen.getByText("https://njusehub.info/v1")).toBeInTheDocument();
+  });
+
+  it("shows persisted memory records instead of feedback-derived placeholders", async () => {
+    render(<App />);
+
+    await userEvent.click(await screen.findByRole("button", { name: /^Memory$/i }));
+
+    expect(await screen.findByText("Use the focused calculator test")).toBeInTheDocument();
   });
 });

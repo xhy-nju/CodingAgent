@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createDemoRun, fetchPolicies } from "./api";
+import { createDemoRun, fetchApprovals, fetchMemory, fetchPolicies } from "./api";
 
 describe("api client", () => {
   it("creates a bugfix demo run", async () => {
@@ -30,5 +30,26 @@ describe("api client", () => {
     const policies = await fetchPolicies();
 
     expect(policies.profiles).toContain("strict_demo");
+  });
+
+  it("fetches persisted approvals and scoped memory", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ approvals: [{ id: "approval-1", state: "pending" }] }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ records: [{ id: "mem-1", content: "Focused pytest first" }] }),
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const approvals = await fetchApprovals();
+    const memory = await fetchMemory("project");
+
+    expect(approvals.approvals[0].state).toBe("pending");
+    expect(memory.records[0].content).toBe("Focused pytest first");
+    expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/memory?scope=project", undefined);
   });
 });

@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from coding_agent.action_parser import parse_action
 from coding_agent.approvals import ApprovalService
 from coding_agent.domain import ActionKind, FeedbackSignal, FeedbackType, RunStatus, ToolResult
-from coding_agent.events import EventBus
+from coding_agent.events import EventBus, EventType
 from coding_agent.feedback import feedback_from_tool_result
 from coding_agent.llm import LLMContext, LLMProvider
 from coding_agent.memory import MemoryService
@@ -34,6 +34,7 @@ class AgentLoop:
         policy_profile: str,
         llm_mode: str,
         max_steps: int,
+        memory_scope: str = "project",
     ) -> None:
         self.store = store
         self.events = events
@@ -44,12 +45,13 @@ class AgentLoop:
         self.policy_profile = policy_profile
         self.llm_mode = llm_mode
         self.max_steps = max_steps
+        self.memory_scope = memory_scope
         self.approvals = ApprovalService(store)
 
     def run(self, task: str) -> RunSummary:
         run_id = self.store.create_run(task, str(self.workspace), self.policy_profile, self.llm_mode)
         self.store.update_run_status(run_id, RunStatus.RUNNING)
-        self.events.append_event(run_id, "run.started", {"task": task})
+        self.events.append_event(run_id, EventType.RUN_STARTED, {"task": task})
         return self._continue(run_id, task, start_step=0, feedback=[])
 
     def _continue(
@@ -60,23 +62,41 @@ class AgentLoop:
         feedback: list[FeedbackSignal],
     ) -> RunSummary:
         for step_index in range(start_step, self.max_steps):
-            raw = self.llm.next_action(LLMContext(task=task, step_index=step_index, feedback=feedback))
-            self.events.append_event(run_id, "llm.raw", {"step": step_index, "raw": raw})
+            memories = tuple(
+                self.memory.search(tags=[], query="", scope=self.memory_scope, limit=5)
+            )
+            raw = self.llm.next_action(
+                LLMContext(
+                    task=task,
+                    step_index=step_index,
+                    feedback=feedback,
+                    memories=memories,
+                )
+            )
+            self.events.append_event(run_id, EventType.LLM_OUTPUT, {"step": step_index, "raw": raw})
             parsed = parse_action(raw)
             if not parsed.ok:
                 assert parsed.feedback is not None
                 feedback = [parsed.feedback]
-                self.events.append_event(run_id, "feedback", parsed.feedback.model_dump(mode="json"))
+                self.events.append_event(
+                    run_id, EventType.FEEDBACK_RECORDED, parsed.feedback.model_dump(mode="json")
+                )
                 continue
 
             action = parsed.action
             assert action is not None
             if action.kind is ActionKind.FINAL:
                 self.store.update_run_status(run_id, RunStatus.SUCCEEDED)
-                self.events.append_event(run_id, "run.finished", {"status": "succeeded"})
+                self.events.append_event(run_id, EventType.RUN_FINISHED, {"status": "succeeded"})
                 return RunSummary(run_id=run_id, status="succeeded", feedback=feedback)
 
-            result = self.dispatcher.dispatch(action)
+            guardrail = self.dispatcher.evaluate(action)
+            self.events.append_event(
+                run_id,
+                EventType.GUARDRAIL_CHECKED,
+                {"action_id": action.id, **guardrail.model_dump(mode="json")},
+            )
+            result = self.dispatcher.dispatch(action, guardrail)
             if result.status == "needs_approval":
                 approval = self.approvals.create(
                     run_id=run_id,
@@ -89,7 +109,7 @@ class AgentLoop:
                 self.store.update_run_status(run_id, RunStatus.WAITING_APPROVAL)
                 self.events.append_event(
                     run_id,
-                    "approval.requested",
+                    EventType.APPROVAL_REQUESTED,
                     approval.model_dump(mode="json", exclude={"feedback"}),
                 )
                 return RunSummary(
@@ -104,7 +124,9 @@ class AgentLoop:
                 return finished
 
         self.store.update_run_status(run_id, RunStatus.FAILED)
-        self.events.append_event(run_id, "run.finished", {"status": "failed", "reason": "max_steps"})
+        self.events.append_event(
+            run_id, EventType.RUN_FINISHED, {"status": "failed", "reason": "max_steps"}
+        )
         return RunSummary(run_id=run_id, status="failed", feedback=feedback)
 
     def resolve_approval(
@@ -121,7 +143,7 @@ class AgentLoop:
             updated = self.approvals.approve_once(approval_id, reviewer, reason)
             self.events.append_event(
                 request.run_id,
-                "approval.approved",
+                EventType.APPROVAL_APPROVED,
                 {"approval_id": approval_id, "reviewer": reviewer, "reason": reason},
             )
             self.store.update_run_status(request.run_id, RunStatus.RUNNING)
@@ -134,7 +156,7 @@ class AgentLoop:
             self.approvals.reject(approval_id, reviewer, reason)
             self.events.append_event(
                 request.run_id,
-                "approval.rejected",
+                EventType.APPROVAL_REJECTED,
                 {"approval_id": approval_id, "reviewer": reviewer, "reason": reason},
             )
             feedback = [
@@ -146,7 +168,9 @@ class AgentLoop:
                 )
             ]
             self.events.append_event(
-                request.run_id, "feedback", feedback[0].model_dump(mode="json")
+                request.run_id,
+                EventType.FEEDBACK_RECORDED,
+                feedback[0].model_dump(mode="json"),
             )
             self.store.update_run_status(request.run_id, RunStatus.RUNNING)
         else:
@@ -162,12 +186,18 @@ class AgentLoop:
     def _record_tool_result(
         self, run_id: str, result: ToolResult
     ) -> tuple[RunSummary | None, list[FeedbackSignal]]:
-        self.events.append_event(run_id, "tool.result", result.model_dump(mode="json"))
+        self.events.append_event(run_id, EventType.TOOL_RESULT, result.model_dump(mode="json"))
+        if result.artifacts.get("memory_id"):
+            self.events.append_event(
+                run_id,
+                EventType.MEMORY_WRITTEN,
+                {"memory_id": result.artifacts["memory_id"]},
+            )
         feedback = feedback_from_tool_result(result)
 
         if result.status == "blocked":
             self.store.update_run_status(run_id, RunStatus.FAILED)
-            self.events.append_event(run_id, "run.finished", {"status": "failed"})
+            self.events.append_event(run_id, EventType.RUN_FINISHED, {"status": "failed"})
             return RunSummary(run_id=run_id, status="failed", feedback=feedback), feedback
 
         if result.artifacts.get("diff_summary"):
@@ -181,11 +211,13 @@ class AgentLoop:
             ]
 
         for item in feedback:
-            self.events.append_event(run_id, "feedback", item.model_dump(mode="json"))
+            self.events.append_event(
+                run_id, EventType.FEEDBACK_RECORDED, item.model_dump(mode="json")
+            )
 
         if any(item.type is FeedbackType.TEST_PASSED for item in feedback):
             self.store.update_run_status(run_id, RunStatus.SUCCEEDED)
-            self.events.append_event(run_id, "run.finished", {"status": "succeeded"})
+            self.events.append_event(run_id, EventType.RUN_FINISHED, {"status": "succeeded"})
             return RunSummary(run_id=run_id, status="succeeded", feedback=feedback), feedback
 
         return None, feedback

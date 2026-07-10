@@ -25,6 +25,15 @@ class ApprovalThenFinalProvider(LLMProvider):
         return '{"kind":"final","args":{},"reason":"done","expectation":"stop"}'
 
 
+class CapturingFinalProvider(LLMProvider):
+    def __init__(self) -> None:
+        self.contexts: list[LLMContext] = []
+
+    def next_action(self, context: LLMContext) -> str:
+        self.contexts.append(context)
+        return '{"kind":"final","args":{},"reason":"done","expectation":"stop"}'
+
+
 def _loop(tmp_path: Path, workspace: Path, script_name: str) -> AgentLoop:
     store = SqliteStore(tmp_path / "agent.db")
     policy = load_policy("strict_demo", Path("config/policies"))
@@ -145,3 +154,43 @@ def test_rejected_action_never_executes_and_rejection_is_feedback(tmp_path: Path
     assert calls == []
     assert any(item.type == "approval_rejected" for item in resumed.feedback)
     assert ApprovalService(store).get(approval.id).state is ApprovalState.REJECTED
+
+
+def test_scoped_memory_is_injected_before_provider_call(tmp_path: Path) -> None:
+    workspace = tmp_path / "memory-workspace"
+    workspace.mkdir()
+    store = SqliteStore(tmp_path / "memory-agent.db")
+    policy = load_policy("strict_demo", Path("config/policies"))
+    memory = MemoryService(store)
+    memory.write_summary(
+        scope="project",
+        tags=["preference"],
+        content="Run the narrow pytest target first",
+        source_run_id=None,
+    )
+    memory.write_summary(
+        scope="other-project",
+        tags=["preference"],
+        content="This belongs to a different scope",
+        source_run_id=None,
+    )
+    provider = CapturingFinalProvider()
+    loop = AgentLoop(
+        store=store,
+        events=EventBus(store),
+        memory=memory,
+        dispatcher=build_default_dispatcher(
+            GuardrailEngine(policy, workspace), workspace, policy, memory=memory
+        ),
+        llm=provider,
+        workspace=workspace,
+        policy_profile="strict_demo",
+        llm_mode="mock",
+        max_steps=2,
+    )
+
+    loop.run("fix focused tests")
+
+    assert [record.content for record in provider.contexts[0].memories] == [
+        "Run the narrow pytest target first"
+    ]

@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 import httpx
 
-from coding_agent.domain import FeedbackSignal
+from coding_agent.domain import FeedbackSignal, MemoryRecord
 
 
 @dataclass(frozen=True)
@@ -14,6 +14,7 @@ class LLMContext:
     task: str
     step_index: int
     feedback: list[FeedbackSignal]
+    memories: tuple[MemoryRecord, ...] = ()
 
 
 class LLMProvider:
@@ -112,6 +113,10 @@ class RealLLMProvider(LLMProvider):
         if not self.provider_token:
             raise RuntimeError("OPENAI_API_KEY is not configured")
 
+        memory_text = "\n".join(f"- {record.content}" for record in context.memories)
+        user_content = f"Task: {context.task}\nStep: {context.step_index}"
+        if memory_text:
+            user_content += f"\nRelevant memory:\n{memory_text}"
         response = httpx.post(
             f"{self.base_url}/chat/completions",
             headers={"Authorization": f"Bearer {self.provider_token}"},
@@ -124,7 +129,7 @@ class RealLLMProvider(LLMProvider):
                     },
                     {
                         "role": "user",
-                        "content": f"Task: {context.task}\nStep: {context.step_index}",
+                        "content": user_content,
                     },
                 ],
                 "temperature": 0,

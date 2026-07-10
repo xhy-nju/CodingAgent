@@ -3,6 +3,8 @@ from pathlib import Path
 from starlette.testclient import TestClient
 
 from coding_agent.api import create_app
+from coding_agent.memory import MemoryService
+from coding_agent.store import SqliteStore
 
 
 def test_create_bugfix_demo_run(tmp_path: Path) -> None:
@@ -35,6 +37,11 @@ def test_events_endpoint_returns_sse_lines(tmp_path: Path) -> None:
 
     assert response.status_code == 200
     assert "event: run.started" in response.text
+    assert "event: guardrail.checked" in response.text
+    assert "event: tool.result" in response.text
+    assert "event: feedback.recorded" in response.text
+    assert "event: llm.raw" not in response.text
+    assert "event: feedback\n" not in response.text
     assert "data:" in response.text
 
 
@@ -84,3 +91,47 @@ def test_approval_decision_requires_explicit_review_input(tmp_path: Path) -> Non
     response = client.post("/api/approvals/approval-1/decision", json={})
 
     assert response.status_code == 422
+
+
+def test_sse_never_exposes_exact_or_known_format_tokens(tmp_path: Path, monkeypatch) -> None:
+    exact_token = "exact-sse-provider-token-for-test"
+    monkeypatch.setenv("OPENAI_API_KEY", exact_token)
+    store = SqliteStore(tmp_path / "agent.db")
+    run_id = store.create_run("task", str(tmp_path), "strict_demo", "mock")
+    store.append_event(
+        run_id,
+        "llm.output",
+        {"raw": f"{exact_token} sk-sseknownformat123456789012345"},
+    )
+    client = TestClient(create_app(data_dir=tmp_path))
+
+    response = client.get(f"/api/runs/{run_id}/events")
+
+    assert response.status_code == 200
+    assert exact_token not in response.text
+    assert "sk-sseknownformat123456789012345" not in response.text
+    assert "provider_token:redacted" in response.text
+
+
+def test_memory_endpoint_returns_real_scoped_records(tmp_path: Path) -> None:
+    memory = MemoryService(SqliteStore(tmp_path / "agent.db"))
+    memory.write_summary(
+        scope="project",
+        tags=["pytest"],
+        content="Use the focused calculator test",
+        source_run_id="run-1",
+    )
+    memory.write_summary(
+        scope="other",
+        tags=["pytest"],
+        content="Not part of this project",
+        source_run_id="run-2",
+    )
+    client = TestClient(create_app(data_dir=tmp_path))
+
+    response = client.get("/api/memory", params={"scope": "project", "query": "calculator"})
+
+    assert response.status_code == 200
+    assert [item["content"] for item in response.json()["records"]] == [
+        "Use the focused calculator test"
+    ]

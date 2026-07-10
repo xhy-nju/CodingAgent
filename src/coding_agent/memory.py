@@ -27,5 +27,11 @@ class MemoryService:
             sensitive=sensitive,
         )
 
-    def search(self, tags: list[str], query: str) -> list[MemoryRecord]:
-        return self.store.search_memory(tags=tags, query=query)
+    def search(
+        self,
+        tags: list[str],
+        query: str,
+        scope: str | None = None,
+        limit: int | None = None,
+    ) -> list[MemoryRecord]:
+        return self.store.search_memory(tags=tags, query=query, scope=scope, limit=limit)

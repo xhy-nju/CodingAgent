@@ -59,6 +59,9 @@ class ApprovalService:
     def list_pending(self) -> list[ApprovalRequest]:
         return self.store.list_approvals(ApprovalState.PENDING)
 
+    def list(self, state: ApprovalState | None = None) -> list[ApprovalRequest]:
+        return self.store.list_approvals(state)
+
     def record_execution(self, request_id: str, result: ToolResult) -> ApprovalRequest:
         return self.store.record_approval_execution(request_id, result)
 

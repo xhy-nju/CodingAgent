@@ -15,12 +15,13 @@ from pydantic import BaseModel
 from coding_agent.agent_loop import AgentLoop
 from coding_agent.approvals import ApprovalService
 from coding_agent.credentials import CredentialService
-from coding_agent.domain import RunStatus
+from coding_agent.domain import ApprovalState, RunStatus
 from coding_agent.events import EventBus
 from coding_agent.guardrails import GuardrailEngine
 from coding_agent.llm import MockLLMProvider
 from coding_agent.memory import MemoryService
 from coding_agent.policies import load_policy
+from coding_agent.redaction import redact_value
 from coding_agent.store import SqliteStore
 from coding_agent.tools.dispatcher import build_default_dispatcher
 
@@ -93,12 +94,15 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
         runtime_dir.mkdir(parents=True, exist_ok=True)
         return runtime_dir
 
+    def public(value: Any) -> Any:
+        return redact_value(value, os.environ.get("OPENAI_API_KEY"))[0]
+
     @app.post("/api/runs/demo")
     def create_demo_run(request: DemoRequest) -> dict[str, Any]:
         result, loop = _run_demo(request.name, ensure_runtime_dir())
         if result["status"] == RunStatus.WAITING_APPROVAL.value:
             app.state.pending_loops[result["run_id"]] = loop
-        return result
+        return public(result)
 
     @app.get("/api/runs/{run_id}/events")
     def run_events(run_id: str) -> StreamingResponse:
@@ -108,7 +112,7 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
         def stream() -> Any:
             for event in events:
                 yield f"event: {event['event_type']}\n"
-                yield f"data: {json.dumps(event['payload'], ensure_ascii=False)}\n\n"
+                yield f"data: {json.dumps(public(event['payload']), ensure_ascii=False)}\n\n"
 
         return StreamingResponse(stream(), media_type="text/event-stream")
 
@@ -118,7 +122,37 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 
     @app.get("/api/credentials/status")
     def credential_status() -> dict[str, object]:
-        return CredentialService.from_env().status()
+        return public(CredentialService.from_env().status())
+
+    @app.get("/api/memory")
+    def memory_records(
+        scope: str = "project", query: str = "", tags: str = ""
+    ) -> dict[str, object]:
+        store = SqliteStore(ensure_runtime_dir() / "agent.db")
+        records = MemoryService(store).search(
+            tags=[tag for tag in tags.split(",") if tag],
+            query=query,
+            scope=scope,
+            limit=100,
+        )
+        return public({"records": [record.model_dump(mode="json") for record in records]})
+
+    @app.get("/api/approvals")
+    def approval_queue(state: str = "pending") -> dict[str, object]:
+        store = SqliteStore(ensure_runtime_dir() / "agent.db")
+        try:
+            parsed_state = ApprovalState(state) if state else None
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="invalid approval state") from exc
+        approvals = ApprovalService(store).list(parsed_state)
+        return public(
+            {
+                "approvals": [
+                    approval.model_dump(mode="json", exclude={"feedback"})
+                    for approval in approvals
+                ]
+            }
+        )
 
     @app.post("/api/approvals/{approval_id}/decision")
     def approval_decision(
@@ -144,11 +178,11 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         if summary.status != RunStatus.WAITING_APPROVAL.value:
             app.state.pending_loops.pop(approval.run_id, None)
-        return {
+        return public({
             "approval_id": approval_id,
             "state": approvals.get(approval_id).state.value,
             "run": summary.model_dump(mode="json"),
-        }
+        })
 
     _mount_frontend(app)
 

@@ -1,17 +1,20 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 import uuid
 from pathlib import Path
 from typing import Any
 
 from coding_agent.domain import ApprovalRequest, ApprovalState, MemoryRecord, RunStatus, ToolResult
+from coding_agent.redaction import redact_value
 
 
 class SqliteStore:
     def __init__(self, db_path: Path) -> None:
         self.db_path = db_path
+        self.provider_token = os.environ.get("OPENAI_API_KEY")
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_schema()
 
@@ -35,7 +38,8 @@ class SqliteStore:
                     finished_at text
                 );
                 create table if not exists events (
-                    id text primary key,
+                    sequence integer primary key autoincrement,
+                    id text not null unique,
                     run_id text not null,
                     event_type text not null,
                     payload_json text not null,
@@ -71,6 +75,25 @@ class SqliteStore:
                 );
                 """
             )
+            columns = {row["name"] for row in conn.execute("pragma table_info(events)")}
+            if "sequence" not in columns:
+                conn.executescript(
+                    """
+                    alter table events rename to events_legacy;
+                    create table events (
+                        sequence integer primary key autoincrement,
+                        id text not null unique,
+                        run_id text not null,
+                        event_type text not null,
+                        payload_json text not null,
+                        created_at text default current_timestamp
+                    );
+                    insert into events(id, run_id, event_type, payload_json, created_at)
+                    select id, run_id, event_type, payload_json, created_at
+                    from events_legacy order by created_at, rowid;
+                    drop table events_legacy;
+                    """
+                )
 
     def create_run(self, task: str, workspace: str, policy_profile: str, llm_mode: str) -> str:
         run_id = f"run-{uuid.uuid4().hex[:12]}"
@@ -201,6 +224,7 @@ class SqliteStore:
         )
 
     def append_event(self, run_id: str, event_type: str, payload: dict[str, Any]) -> None:
+        redacted, _ = redact_value(payload, self.provider_token)
         with self._connect() as conn:
             conn.execute(
                 "insert into events(id, run_id, event_type, payload_json) values (?, ?, ?, ?)",
@@ -208,7 +232,7 @@ class SqliteStore:
                     f"event-{uuid.uuid4().hex[:12]}",
                     run_id,
                     event_type,
-                    json.dumps(payload, ensure_ascii=False),
+                    json.dumps(redacted, ensure_ascii=False),
                 ),
             )
 
@@ -216,16 +240,19 @@ class SqliteStore:
         with self._connect() as conn:
             rows = conn.execute(
                 (
-                    "select id, event_type, payload_json, created_at from events "
-                    "where run_id = ? order by created_at, id"
+                    "select sequence, id, event_type, payload_json, created_at from events "
+                    "where run_id = ? order by sequence"
                 ),
                 (run_id,),
             ).fetchall()
         return [
             {
+                "sequence": row["sequence"],
                 "id": row["id"],
                 "event_type": row["event_type"],
-                "payload": json.loads(row["payload_json"]),
+                "payload": redact_value(
+                    json.loads(row["payload_json"]), self.provider_token
+                )[0],
                 "created_at": row["created_at"],
             }
             for row in rows
@@ -242,6 +269,7 @@ class SqliteStore:
         sensitive: bool,
     ) -> str:
         memory_id = f"mem-{uuid.uuid4().hex[:12]}"
+        redacted_content = redact_value(content, self.provider_token)[0]
         with self._connect() as conn:
             conn.execute(
                 (
@@ -254,7 +282,7 @@ class SqliteStore:
                     scope,
                     kind,
                     json.dumps(tags),
-                    content,
+                    redacted_content,
                     source_run_id,
                     confidence,
                     int(sensitive),
@@ -262,28 +290,40 @@ class SqliteStore:
             )
         return memory_id
 
-    def search_memory(self, tags: list[str], query: str) -> list[MemoryRecord]:
+    def search_memory(
+        self,
+        tags: list[str],
+        query: str,
+        scope: str | None = None,
+        limit: int | None = None,
+    ) -> list[MemoryRecord]:
         with self._connect() as conn:
             rows = conn.execute(
-                "select * from memory where sensitive = 0 order by created_at desc"
+                (
+                    "select * from memory where sensitive = 0 "
+                    "order by confidence desc, created_at desc, id"
+                )
             ).fetchall()
         lowered = query.lower()
         result: list[MemoryRecord] = []
         for row in rows:
             row_tags = json.loads(row["tags_json"])
+            scope_match = scope is None or row["scope"] == scope
             tag_match = not tags or any(tag in row_tags for tag in tags)
             query_match = not query or lowered in row["content"].lower()
-            if tag_match and query_match:
+            if scope_match and tag_match and query_match:
                 result.append(
                     MemoryRecord(
                         id=row["id"],
                         scope=row["scope"],
                         kind=row["kind"],
                         tags=row_tags,
-                        content=row["content"],
+                        content=redact_value(row["content"], self.provider_token)[0],
                         source_run_id=row["source_run_id"],
                         confidence=float(row["confidence"]),
                         sensitive=bool(row["sensitive"]),
                     )
                 )
+                if limit is not None and len(result) >= limit:
+                    break
         return result
