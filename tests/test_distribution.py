@@ -33,6 +33,8 @@ def test_distribution_files_define_safe_docker_runtime() -> None:
     assert "ADMIN_PASSWORD: ${ADMIN_PASSWORD:-change-this-before-deploying}" in read(
         "docker-compose.yml"
     )
+    assert "SESSION_SECRET:" in read("docker-compose.yml")
+    assert "healthcheck:" in read("docker-compose.yml")
     assert "CODING_AGENT_DATA_DIR: /data" in read("docker-compose.yml")
     assert "OPENAI_API_KEY=" in read(".env.example")
     assert "ENABLE_REAL_LLM=false" in read(".env.example")
@@ -49,8 +51,34 @@ def test_ci_files_cover_backend_frontend_and_docker() -> None:
     assert "npm test" in github_ci
     assert "npm run build" in github_ci
     assert "docker build -t coding-agent:ci ." in github_ci
+    assert "gitleaks/gitleaks-action" in github_ci
     assert "unit-test:" in gitlab_ci
     assert "pytest -q" in gitlab_ci
+
+
+def test_production_distribution_uses_secret_and_public_image() -> None:
+    production = read("docker-compose.production.yml")
+    publish = read(".github/workflows/publish-image.yml")
+    nginx = read("deploy/nginx.conf")
+
+    assert "ghcr.io/${GITHUB_REPOSITORY_OWNER}/coding-agent" in production
+    assert "OPENAI_API_KEY_FILE: /run/secrets/openai_api_key" in production
+    assert "/run/secrets/openai_api_key" in production
+    assert "127.0.0.1:8000:8000" in production
+    assert "healthcheck:" in production
+    assert "packages: write" in publish
+    assert "docker/build-push-action" in publish
+    assert "proxy_set_header X-Forwarded-Proto" in nginx
+    assert "proxy_buffering off" in nginx
+
+
+def test_health_endpoint_is_public(tmp_path: Path) -> None:
+    client = TestClient(create_app(data_dir=tmp_path))
+
+    response = client.get("/api/health")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
 
 
 def test_readme_documents_local_and_docker_demo_commands() -> None:

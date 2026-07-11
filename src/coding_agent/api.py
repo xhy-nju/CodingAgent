@@ -280,6 +280,10 @@ def create_app(
     def policies() -> dict[str, list[str]]:
         return {"profiles": ["strict_demo", "balanced_dev"]}
 
+    @app.get("/api/health")
+    def health() -> dict[str, str]:
+        return {"status": "ok"}
+
     @app.get("/api/credentials/status")
     def credential_status() -> dict[str, object]:
         snapshot = current_snapshot()

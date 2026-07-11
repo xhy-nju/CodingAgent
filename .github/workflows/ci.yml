@@ -34,3 +34,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: docker build -t coding-agent:ci .
+      - run: docker compose config --quiet
+
+  secrets:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2

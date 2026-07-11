@@ -1,0 +1,35 @@
+services:
+  coding-agent:
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER}/coding-agent:${CODING_AGENT_TAG:-latest}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      ENABLE_REAL_LLM: ${ENABLE_REAL_LLM:-true}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://njusehub.info/v1}
+      OPENAI_MODEL: ${OPENAI_MODEL:-glm-5.2}
+      OPENAI_API_KEY_FILE: /run/secrets/openai_api_key
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?set ADMIN_PASSWORD}
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET}
+      SESSION_TTL_SECONDS: ${SESSION_TTL_SECONDS:-28800}
+      COOKIE_SECURE: "true"
+      CODING_AGENT_DATA_DIR: /data
+    secrets:
+      - source: openai_api_key
+        target: openai_api_key
+        mode: 0400
+    volumes:
+      - coding-agent-data:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 15s
+
+secrets:
+  openai_api_key:
+    file: ./secrets/openai_api_key
+
+volumes:
+  coding-agent-data:
