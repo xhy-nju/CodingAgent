@@ -4,6 +4,7 @@ from keyring.errors import PasswordDeleteError
 from starlette.testclient import TestClient
 
 from coding_agent.api import create_app
+from coding_agent.auth import AuthService
 from coding_agent.credentials import CredentialService, CredentialSnapshot
 from coding_agent.memory import MemoryService
 from coding_agent.store import SqliteStore
@@ -23,6 +24,19 @@ class FakeKeyring:
         if not self.token:
             raise PasswordDeleteError("credential not found")
         self.token = ""
+
+
+def authenticated_client(tmp_path: Path) -> TestClient:
+    auth = AuthService(
+        admin_password="test-admin-password",
+        session_secret="test-session-secret-that-is-long-enough",
+    )
+    client = TestClient(create_app(data_dir=tmp_path, auth_service=auth))
+    response = client.post(
+        "/api/auth/login", json={"password": "test-admin-password"}
+    )
+    assert response.status_code == 200
+    return client
 
 
 def test_create_bugfix_demo_run(tmp_path: Path) -> None:
@@ -130,7 +144,7 @@ def test_credential_status_resolves_once(tmp_path: Path) -> None:
 
 
 def test_approval_decision_endpoint_records_state(tmp_path: Path) -> None:
-    client = TestClient(create_app(data_dir=tmp_path))
+    client = authenticated_client(tmp_path)
 
     response = client.post(
         "/api/approvals/approval-does-not-exist/decision",
@@ -219,7 +233,7 @@ def test_memory_endpoint_returns_real_scoped_records(tmp_path: Path) -> None:
         content="Not part of this project",
         source_run_id="run-2",
     )
-    client = TestClient(create_app(data_dir=tmp_path))
+    client = authenticated_client(tmp_path)
 
     response = client.get("/api/memory", params={"scope": "project", "query": "calculator"})
 

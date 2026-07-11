@@ -7,13 +7,14 @@ import tempfile
 from pathlib import Path
 from typing import Any, Literal
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from coding_agent.agent_loop import AgentLoop
 from coding_agent.approvals import ApprovalService
+from coding_agent.auth import AuthService, SessionStatus
 from coding_agent.credentials import CredentialService, CredentialSnapshot
 from coding_agent.domain import ApprovalState, RunStatus
 from coding_agent.events import EventBus
@@ -34,6 +35,10 @@ class ApprovalDecisionRequest(BaseModel):
     decision: Literal["approve", "reject"]
     reviewer: str
     reason: str
+
+
+class LoginRequest(BaseModel):
+    password: str = Field(min_length=1, max_length=4096)
 
 
 def _workspace_for_demo(name: str, data_dir: Path) -> Path:
@@ -88,12 +93,15 @@ def _mount_frontend(app: FastAPI) -> None:
 
 
 def create_app(
-    data_dir: Path | None = None, credential_service: CredentialService | None = None
+    data_dir: Path | None = None,
+    credential_service: CredentialService | None = None,
+    auth_service: AuthService | None = None,
 ) -> FastAPI:
     app = FastAPI(title="CodingAgent Harness")
     app.state.pending_loops = {}
     runtime_dir = data_dir or Path(os.environ.get("CODING_AGENT_DATA_DIR", ".coding-agent-data"))
     credentials = credential_service or CredentialService()
+    auth = auth_service or AuthService.from_env()
 
     def ensure_runtime_dir() -> Path:
         runtime_dir.mkdir(parents=True, exist_ok=True)
@@ -107,6 +115,62 @@ def create_app(
 
     def public(value: Any, snapshot: CredentialSnapshot) -> Any:
         return redact_value(value, snapshot.provider_token)[0]
+
+    def session_status(request: Request) -> SessionStatus:
+        return auth.verify_session(request.cookies.get(AuthService.COOKIE_NAME))
+
+    def require_admin(request: Request) -> None:
+        if not session_status(request).authenticated:
+            raise HTTPException(status_code=401, detail="authentication required")
+
+    def require_same_origin(request: Request) -> None:
+        origin = request.headers.get("origin")
+        expected = f"{request.url.scheme}://{request.url.netloc}"
+        if origin and origin.rstrip("/") != expected.rstrip("/"):
+            raise HTTPException(status_code=403, detail="cross-origin request denied")
+
+    @app.post("/api/auth/login")
+    def login(request: LoginRequest, response: Response) -> dict[str, object]:
+        if not auth.verify_password(request.password):
+            raise HTTPException(status_code=401, detail="invalid credentials")
+        try:
+            token = auth.issue_session()
+        except RuntimeError as exc:
+            raise HTTPException(status_code=401, detail="invalid credentials") from exc
+        status = auth.verify_session(token)
+        response.set_cookie(
+            AuthService.COOKIE_NAME,
+            token,
+            max_age=auth.ttl_seconds,
+            path="/",
+            secure=auth.cookie_secure,
+            httponly=True,
+            samesite="strict",
+        )
+        return {
+            "authenticated": status.authenticated,
+            "expires_at": status.expires_at,
+        }
+
+    @app.get("/api/auth/status")
+    def auth_status(request: Request) -> dict[str, object]:
+        status = session_status(request)
+        return {
+            "authenticated": status.authenticated,
+            "expires_at": status.expires_at,
+        }
+
+    @app.post("/api/auth/logout")
+    def logout(request: Request, response: Response) -> dict[str, object]:
+        require_same_origin(request)
+        response.delete_cookie(
+            AuthService.COOKIE_NAME,
+            path="/",
+            secure=auth.cookie_secure,
+            httponly=True,
+            samesite="strict",
+        )
+        return {"authenticated": False, "expires_at": None}
 
     @app.post("/api/runs/demo")
     def create_demo_run(request: DemoRequest) -> dict[str, Any]:
@@ -139,8 +203,10 @@ def create_app(
 
     @app.get("/api/memory")
     def memory_records(
+        request: Request,
         scope: str = "project", query: str = "", tags: str = ""
     ) -> dict[str, object]:
+        require_admin(request)
         snapshot = current_snapshot()
         records = MemoryService(store(snapshot)).search(
             tags=[tag for tag in tags.split(",") if tag],
@@ -151,7 +217,8 @@ def create_app(
         return public({"records": [record.model_dump(mode="json") for record in records]}, snapshot)
 
     @app.get("/api/approvals")
-    def approval_queue(state: str = "pending") -> dict[str, object]:
+    def approval_queue(request: Request, state: str = "pending") -> dict[str, object]:
+        require_admin(request)
         snapshot = current_snapshot()
         approvals_store = store(snapshot)
         try:
@@ -171,8 +238,12 @@ def create_app(
 
     @app.post("/api/approvals/{approval_id}/decision")
     def approval_decision(
-        approval_id: str, request: ApprovalDecisionRequest
+        approval_id: str,
+        decision: ApprovalDecisionRequest,
+        request: Request,
     ) -> dict[str, object]:
+        require_admin(request)
+        require_same_origin(request)
         snapshot = current_snapshot()
         approvals = ApprovalService(store(snapshot))
         try:
@@ -185,9 +256,9 @@ def create_app(
         try:
             summary = loop.resolve_approval(
                 approval_id,
-                decision=request.decision,
-                reviewer=request.reviewer,
-                reason=request.reason,
+                decision=decision.decision,
+                reviewer=decision.reviewer,
+                reason=decision.reason,
             )
         except ValueError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
