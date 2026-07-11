@@ -7,6 +7,7 @@ import httpx
 from pydantic import BaseModel, ConfigDict
 
 from coding_agent.action_parser import parse_action
+from coding_agent.credentials import CredentialSnapshot
 from coding_agent.domain import ActionKind
 from coding_agent.llm import LLMContext, RealLLMProvider
 
@@ -72,7 +73,9 @@ def _result(
     )
 
 
-def probe_real_llm(provider: RealLLMProvider) -> LLMProbeResult:
+def probe_real_llm(provider: RealLLMProvider | CredentialSnapshot) -> LLMProbeResult:
+    if isinstance(provider, CredentialSnapshot):
+        provider = RealLLMProvider.from_credentials(provider)
     started_ns = time.perf_counter_ns()
     if not provider.enabled:
         return _result(

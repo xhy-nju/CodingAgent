@@ -3,12 +3,109 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+from keyring.errors import PasswordDeleteError
 
-from coding_agent.credentials import CredentialService
+from coding_agent.credentials import CredentialService, CredentialSnapshot
 from coding_agent.llm import LLMContext, RealLLMProvider
 
 
+class FakeKeyring:
+    def __init__(self, token: str | None = None) -> None:
+        self.token = token
+
+    def get_password(self, service: str, username: str) -> str | None:
+        return self.token
+
+    def set_password(self, service: str, username: str, token: str) -> None:
+        self.token = token
+
+    def delete_password(self, service: str, username: str) -> None:
+        if self.token is None:
+            raise PasswordDeleteError("credential not found")
+        self.token = None
+
+
+def test_credential_priority_prefers_secret_file(tmp_path, monkeypatch) -> None:
+    secret = tmp_path / "openai_api_key"
+    secret.write_text("file-token\n", encoding="utf-8")
+    monkeypatch.setenv("OPENAI_API_KEY_FILE", str(secret))
+    monkeypatch.setenv("OPENAI_API_KEY", "environment-token")
+    service = CredentialService(keyring_backend=FakeKeyring("keyring-token"))
+
+    snapshot = service.resolve()
+
+    assert snapshot.provider_token == "file-token"
+    assert snapshot.source == "docker-secret"
+
+
+def test_credential_priority_prefers_environment_over_keyring(monkeypatch) -> None:
+    monkeypatch.delenv("OPENAI_API_KEY_FILE", raising=False)
+    monkeypatch.setenv("OPENAI_API_KEY", "environment-token")
+    service = CredentialService(keyring_backend=FakeKeyring("keyring-token"))
+
+    snapshot = service.resolve()
+
+    assert snapshot.provider_token == "environment-token"
+    assert snapshot.source == "environment"
+
+
+def test_credential_service_treats_blank_keyring_token_as_missing(monkeypatch) -> None:
+    monkeypatch.delenv("OPENAI_API_KEY_FILE", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    service = CredentialService(keyring_backend=FakeKeyring("  "))
+
+    snapshot = service.resolve()
+
+    assert snapshot.provider_token is None
+    assert snapshot.source == "missing"
+
+
+def test_keyring_set_update_and_clear(monkeypatch) -> None:
+    monkeypatch.delenv("OPENAI_API_KEY_FILE", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    keyring = FakeKeyring()
+    service = CredentialService(keyring_backend=keyring)
+
+    service.set_keyring_token("first-token")
+    service.set_keyring_token("second-token")
+
+    assert service.resolve().provider_token == "second-token"
+    assert service.clear_keyring_token() is True
+    assert service.resolve().configured is False
+    assert service.clear_keyring_token() is False
+
+
+def test_credential_service_rejects_oversized_secret_and_empty_keyring_token(tmp_path, monkeypatch) -> None:
+    secret = tmp_path / "openai_api_key"
+    secret.write_text("x" * (16 * 1024 + 1), encoding="utf-8")
+    monkeypatch.setenv("OPENAI_API_KEY_FILE", str(secret))
+    service = CredentialService(keyring_backend=FakeKeyring())
+
+    with pytest.raises(ValueError, match="credential file exceeds 16 KiB"):
+        service.resolve()
+    with pytest.raises(ValueError, match="API key cannot be empty"):
+        service.set_keyring_token("  ")
+
+
+def test_real_provider_uses_credential_snapshot() -> None:
+    snapshot = CredentialSnapshot(
+        provider_token="snapshot-token",
+        source="keyring",
+        base_url="https://example.test/v1/",
+        model="snapshot-model",
+        real_enabled=True,
+    )
+
+    provider = RealLLMProvider.from_credentials(snapshot)
+
+    assert provider.provider_token == "snapshot-token"
+    assert provider.base_url == "https://example.test/v1"
+    assert provider.model == "snapshot-model"
+    assert provider.enabled is True
+
+
 def test_credential_status_without_key(monkeypatch) -> None:
+    monkeypatch.delenv("OPENAI_API_KEY_FILE", raising=False)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
     monkeypatch.delenv("OPENAI_MODEL", raising=False)
@@ -27,6 +124,7 @@ def test_credential_status_without_key(monkeypatch) -> None:
 
 
 def test_credential_status_with_key_and_overrides(monkeypatch) -> None:
+    monkeypatch.delenv("OPENAI_API_KEY_FILE", raising=False)
     monkeypatch.setenv("OPENAI_API_KEY", "provider-token-for-test")
     monkeypatch.setenv("OPENAI_BASE_URL", "https://example.test/v1")
     monkeypatch.setenv("OPENAI_MODEL", "demo-model")

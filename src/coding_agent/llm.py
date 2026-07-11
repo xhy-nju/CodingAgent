@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import json
-import os
 from dataclasses import dataclass
 
 import httpx
 
 from coding_agent.domain import FeedbackSignal, MemoryRecord
+from coding_agent.credentials import CredentialService, CredentialSnapshot
 
 
 @dataclass(frozen=True)
@@ -100,13 +100,17 @@ class RealLLMProvider(LLMProvider):
         self.enabled = enabled
 
     @classmethod
-    def from_env(cls) -> "RealLLMProvider":
+    def from_credentials(cls, snapshot: CredentialSnapshot) -> "RealLLMProvider":
         return cls(
-            provider_token=os.environ.get("OPENAI_API_KEY"),
-            base_url=os.environ.get("OPENAI_BASE_URL", "https://njusehub.info/v1"),
-            model=os.environ.get("OPENAI_MODEL", "glm-5.2"),
-            enabled=os.environ.get("ENABLE_REAL_LLM", "false").lower() == "true",
+            provider_token=snapshot.provider_token,
+            base_url=snapshot.base_url,
+            model=snapshot.model,
+            enabled=snapshot.real_enabled,
         )
+
+    @classmethod
+    def from_env(cls) -> "RealLLMProvider":
+        return cls.from_credentials(CredentialService().resolve())
 
     def next_action(self, context: LLMContext) -> str:
         if not self.enabled:

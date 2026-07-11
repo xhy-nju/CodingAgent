@@ -11,7 +11,7 @@ from coding_agent.agent_loop import AgentLoop
 from coding_agent.credentials import CredentialService
 from coding_agent.events import EventBus
 from coding_agent.guardrails import GuardrailEngine
-from coding_agent.llm import MockLLMProvider, RealLLMProvider
+from coding_agent.llm import MockLLMProvider
 from coding_agent.llm_probe import probe_real_llm
 from coding_agent.memory import MemoryService
 from coding_agent.policies import load_policy
@@ -76,11 +76,15 @@ def demo(name: str = typer.Argument(..., help="dangerous-action or bugfix")) -> 
     raise typer.Exit(code=0 if summary.status == "succeeded" else 1)
 
 
+def _credential_service() -> CredentialService:
+    return CredentialService()
+
+
 def _credential_status_json() -> str:
-    return json.dumps(CredentialService.from_env().status(), ensure_ascii=False, indent=2)
+    return json.dumps(_credential_service().status(), ensure_ascii=False, indent=2)
 
 
-@credentials_app.command("status")
+@credentials_app.command("status", hidden=True)
 def credentials_status() -> None:
     typer.echo(_credential_status_json())
 
@@ -90,9 +94,34 @@ def credentials_status_alias() -> None:
     typer.echo(_credential_status_json())
 
 
+def _set_keyring_token() -> None:
+    token = typer.prompt("API key", hide_input=True, confirmation_prompt=True)
+    _credential_service().set_keyring_token(token)
+    typer.echo("Keyring credential saved.")
+
+
+@credentials_app.command("set", hidden=True)
+def credentials_set() -> None:
+    _set_keyring_token()
+
+
+@credentials_app.command("update", hidden=True)
+def credentials_update() -> None:
+    _set_keyring_token()
+
+
+@credentials_app.command("clear", hidden=True)
+def credentials_clear() -> None:
+    removed = _credential_service().clear_keyring_token()
+    if removed:
+        typer.echo("Keyring credential removed. Environment and Docker Secret sources are unaffected.")
+    else:
+        typer.echo("No Keyring credential was present. Environment and Docker Secret sources are unaffected.")
+
+
 @llm_app.command("probe")
 def llm_probe() -> None:
-    result = probe_real_llm(RealLLMProvider.from_env())
+    result = probe_real_llm(_credential_service().resolve())
     typer.echo(json.dumps(result.model_dump(mode="json"), ensure_ascii=False, indent=2))
     if not result.ok:
         raise typer.Exit(code=1)
