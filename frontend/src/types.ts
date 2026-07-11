@@ -9,11 +9,12 @@ export type RunSummary = {
   run_id: string;
   status: string;
   feedback: FeedbackSignal[];
+  pending_approval_id?: string | null;
 };
 
 export const RUN_EVENT_TYPES = [
   "run.started",
-  "llm.output",
+  "llm.action",
   "guardrail.checked",
   "approval.requested",
   "approval.approved",
@@ -44,6 +45,13 @@ export type ApprovalRecord = {
   reason: string;
   reviewer?: string | null;
   reviewer_reason?: string | null;
+  action?: {
+    kind: string;
+    tool?: string | null;
+    args: Record<string, unknown>;
+    reason: string;
+    expectation: string;
+  };
 };
 
 export type MemoryList = { records: MemoryRecord[] };
@@ -58,4 +66,15 @@ export type CredentialStatus = {
   base_url?: string;
   model?: string;
   real_enabled: boolean;
+};
+
+export type AuthStatus = {
+  authenticated: boolean;
+  expires_at: number | null;
+};
+
+export type ApprovalDecisionResponse = {
+  approval_id: string;
+  state: string;
+  run: RunSummary;
 };

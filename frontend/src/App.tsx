@@ -1,30 +1,42 @@
 import {
   Activity,
+  Bot,
   CheckCircle2,
   ClipboardList,
   Database,
   Gauge,
   KeyRound,
+  LogIn,
+  LogOut,
   LucideIcon,
   MemoryStick,
   Play,
   Settings,
   Shield,
+  Search,
   TerminalSquare,
   XCircle,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 import {
   createDemoRun,
+  createRealRun,
+  decideApproval,
   fetchApprovals,
+  fetchAuthStatus,
   fetchCredentialStatus,
   fetchMemory,
   fetchPolicies,
+  fetchRun,
+  login,
+  logout,
   openRunEventSource,
+  searchMemory,
 } from "./api";
 import {
   RUN_EVENT_TYPES,
   type ApprovalRecord,
+  type AuthStatus,
   type CredentialStatus,
   type FeedbackSignal,
   type MemoryRecord,
@@ -42,6 +54,7 @@ type Tab =
   | "settings";
 
 type DemoName = "bugfix" | "dangerous-action";
+type RunMode = "mock" | "real";
 
 type RunEvent = {
   type: string;
@@ -151,21 +164,41 @@ export default function App() {
   const [events, setEvents] = useState<RunEvent[]>([]);
   const [approvals, setApprovals] = useState<ApprovalRecord[]>([]);
   const [memories, setMemories] = useState<MemoryRecord[]>([]);
+  const [auth, setAuth] = useState<AuthStatus>({ authenticated: false, expires_at: null });
+  const [runMode, setRunMode] = useState<RunMode>("mock");
+  const [realTask, setRealTask] = useState("Repair the calculator and verify the tests pass.");
+  const [loginOpen, setLoginOpen] = useState(false);
+  const [password, setPassword] = useState("");
+  const [loginBusy, setLoginBusy] = useState(false);
+  const [reviewer, setReviewer] = useState("");
+  const [reviewReason, setReviewReason] = useState("");
+  const [approvalBusy, setApprovalBusy] = useState<string | null>(null);
+  const [memoryQuery, setMemoryQuery] = useState("");
+  const [memoryTags, setMemoryTags] = useState("");
   const [busyDemo, setBusyDemo] = useState<DemoName | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
 
-    Promise.all([fetchPolicies(), fetchCredentialStatus(), fetchApprovals(), fetchMemory()])
-      .then(([policyList, credentialStatus, approvalList, memoryList]) => {
+    Promise.all([fetchPolicies(), fetchCredentialStatus(), fetchAuthStatus()])
+      .then(async ([policyList, credentialStatus, authStatus]) => {
         if (!isMounted) {
           return;
         }
         setPolicies(policyList);
         setCredentials(credentialStatus);
-        setApprovals(approvalList.approvals);
-        setMemories(memoryList.records);
+        setAuth(authStatus);
+        if (authStatus.authenticated) {
+          const [approvalList, memoryList] = await Promise.all([
+            fetchApprovals(),
+            fetchMemory(),
+          ]);
+          if (isMounted) {
+            setApprovals(approvalList.approvals);
+            setMemories(memoryList.records);
+          }
+        }
       })
       .catch((reason: unknown) => {
         if (isMounted) {
@@ -177,6 +210,18 @@ export default function App() {
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!run?.run_id || run.status !== "running") {
+      return undefined;
+    }
+    const timer = window.setInterval(() => {
+      fetchRun(run.run_id)
+        .then(setRun)
+        .catch(() => undefined);
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [run?.run_id, run?.status]);
 
   useEffect(() => {
     if (!run?.run_id) {
@@ -220,6 +265,85 @@ export default function App() {
     }
   };
 
+  const startReal = async () => {
+    if (!auth.authenticated) {
+      setLoginOpen(true);
+      return;
+    }
+    setBusyDemo("bugfix");
+    setError(null);
+    setEvents([]);
+    try {
+      const nextRun = await createRealRun(realTask.trim());
+      setRun(nextRun);
+      setActiveTab("run");
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : "Unable to start real run");
+    } finally {
+      setBusyDemo(null);
+    }
+  };
+
+  const submitLogin = async (event: FormEvent) => {
+    event.preventDefault();
+    setLoginBusy(true);
+    setError(null);
+    try {
+      const nextAuth = await login(password);
+      setAuth(nextAuth);
+      setPassword("");
+      setLoginOpen(false);
+      const [approvalList, memoryList] = await Promise.all([fetchApprovals(), fetchMemory()]);
+      setApprovals(approvalList.approvals);
+      setMemories(memoryList.records);
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : "Login failed");
+    } finally {
+      setLoginBusy(false);
+    }
+  };
+
+  const signOut = async () => {
+    const nextAuth = await logout();
+    setAuth(nextAuth);
+    setApprovals([]);
+    setMemories([]);
+    setRunMode("mock");
+  };
+
+  const submitApproval = async (
+    approvalId: string,
+    decision: "approve" | "reject",
+  ) => {
+    setApprovalBusy(approvalId);
+    setError(null);
+    try {
+      const result = await decideApproval(
+        approvalId,
+        decision,
+        reviewer.trim(),
+        reviewReason.trim(),
+      );
+      setRun(result.run);
+      setApprovals((current) => current.filter((item) => item.id !== approvalId));
+      setReviewer("");
+      setReviewReason("");
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : "Approval failed");
+    } finally {
+      setApprovalBusy(null);
+    }
+  };
+
+  const submitMemorySearch = async () => {
+    try {
+      const result = await searchMemory("project", memoryQuery.trim(), memoryTags.trim());
+      setMemories(result.records);
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : "Memory search failed");
+    }
+  };
+
   const policyProfiles = policies?.profiles ?? [];
   const primaryPolicy = policyProfiles[0] ?? "loading";
   const credentialMode = credentials?.real_enabled
@@ -229,6 +353,7 @@ export default function App() {
       : "mock LLM";
 
   return (
+    <>
     <main className="app-shell">
       <aside className="sidebar" aria-label="Primary">
         <div className="brand-block">
@@ -269,6 +394,14 @@ export default function App() {
               <KeyRound aria-hidden="true" />
               {credentialMode}
             </span>
+            <button
+              className="icon-text-button"
+              onClick={auth.authenticated ? signOut : () => setLoginOpen(true)}
+              type="button"
+            >
+              {auth.authenticated ? <LogOut aria-hidden="true" /> : <LogIn aria-hidden="true" />}
+              {auth.authenticated ? "Log out" : "Admin login"}
+            </button>
           </div>
         </header>
 
@@ -284,15 +417,37 @@ export default function App() {
               busyDemo={busyDemo}
               credentialMode={credentialMode}
               onStartDemo={startDemo}
+              onStartReal={startReal}
               policyCount={policyProfiles.length}
+              realTask={realTask}
               run={run}
+              runMode={runMode}
+              setRealTask={setRealTask}
+              setRunMode={setRunMode}
             />
           ) : null}
           {activeTab === "run" ? <RunDetailView events={events} run={run} /> : null}
           {activeTab === "approvals" ? (
-            <ApprovalView approvals={approvals} />
+            <ApprovalView
+              approvalBusy={approvalBusy}
+              approvals={approvals}
+              onDecision={submitApproval}
+              reason={reviewReason}
+              reviewer={reviewer}
+              setReason={setReviewReason}
+              setReviewer={setReviewer}
+            />
           ) : null}
-          {activeTab === "memory" ? <MemoryView memories={memories} /> : null}
+          {activeTab === "memory" ? (
+            <MemoryView
+              memories={memories}
+              onSearch={submitMemorySearch}
+              query={memoryQuery}
+              setQuery={setMemoryQuery}
+              setTags={setMemoryTags}
+              tags={memoryTags}
+            />
+          ) : null}
           {activeTab === "policies" ? <PoliciesView policies={policyProfiles} /> : null}
           {activeTab === "credentials" ? <CredentialsView credentials={credentials} /> : null}
           {activeTab === "settings" ? (
@@ -301,6 +456,32 @@ export default function App() {
         </section>
       </div>
     </main>
+    {loginOpen ? (
+      <div className="dialog-backdrop" role="presentation">
+        <section aria-labelledby="login-title" aria-modal="true" className="dialog" role="dialog">
+          <div className="panel-heading">
+            <div><span className="eyebrow">Protected operations</span><h3 id="login-title">Administrator login</h3></div>
+            <KeyRound aria-hidden="true" className="panel-icon" />
+          </div>
+          <form className="form-stack" onSubmit={submitLogin}>
+            <label htmlFor="admin-password">Password</label>
+            <input
+              autoFocus
+              id="admin-password"
+              onChange={(event) => setPassword(event.target.value)}
+              required
+              type="password"
+              value={password}
+            />
+            <div className="button-row">
+              <button className="secondary-button" onClick={() => setLoginOpen(false)} type="button">Cancel</button>
+              <button className="primary-button" disabled={loginBusy} type="submit"><LogIn aria-hidden="true" />{loginBusy ? "Signing in..." : "Sign in"}</button>
+            </div>
+          </form>
+        </section>
+      </div>
+    ) : null}
+    </>
   );
 }
 
@@ -308,14 +489,24 @@ function DashboardView({
   busyDemo,
   credentialMode,
   onStartDemo,
+  onStartReal,
   policyCount,
+  realTask,
   run,
+  runMode,
+  setRealTask,
+  setRunMode,
 }: {
   busyDemo: DemoName | null;
   credentialMode: string;
   onStartDemo: (name: DemoName) => void;
+  onStartReal: () => void;
   policyCount: number;
+  realTask: string;
   run: RunSummary | null;
+  runMode: RunMode;
+  setRealTask: (task: string) => void;
+  setRunMode: (mode: RunMode) => void;
 }) {
   return (
     <div className="dashboard-layout">
@@ -359,10 +550,28 @@ function DashboardView({
           <div className="panel-heading">
             <div>
               <span className="eyebrow">Demo Center</span>
-              <h3>One-click runs</h3>
+              <h3>{runMode === "mock" ? "One-click runs" : "Real model run"}</h3>
+            </div>
+            <div className="segmented-control" aria-label="Run mode">
+              <button
+                aria-pressed={runMode === "mock"}
+                className={runMode === "mock" ? "active" : ""}
+                onClick={() => setRunMode("mock")}
+                type="button"
+              >
+                Mock
+              </button>
+              <button
+                aria-pressed={runMode === "real"}
+                className={runMode === "real" ? "active" : ""}
+                onClick={() => setRunMode("real")}
+                type="button"
+              >
+                Real
+              </button>
             </div>
           </div>
-          <div className="demo-actions">
+          {runMode === "mock" ? <div className="demo-actions">
             {demoOptions.map(({ name, title, subtitle, Icon }) => (
               <button
                 className="demo-button"
@@ -378,7 +587,27 @@ function DashboardView({
                 </span>
               </button>
             ))}
-          </div>
+          </div> : (
+            <div className="form-stack">
+              <label htmlFor="real-task">Task</label>
+              <textarea
+                id="real-task"
+                maxLength={4000}
+                onChange={(event) => setRealTask(event.target.value)}
+                rows={5}
+                value={realTask}
+              />
+              <button
+                className="primary-button"
+                disabled={busyDemo !== null || !realTask.trim()}
+                onClick={onStartReal}
+                type="button"
+              >
+                <Bot aria-hidden="true" />
+                {busyDemo ? "Starting..." : "Start real run"}
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="panel">
@@ -442,9 +671,21 @@ function RunDetailView({ events, run }: { events: RunEvent[]; run: RunSummary | 
 }
 
 function ApprovalView({
+  approvalBusy,
   approvals,
+  onDecision,
+  reason,
+  reviewer,
+  setReason,
+  setReviewer,
 }: {
+  approvalBusy: string | null;
   approvals: ApprovalRecord[];
+  onDecision: (id: string, decision: "approve" | "reject") => void;
+  reason: string;
+  reviewer: string;
+  setReason: (reason: string) => void;
+  setReviewer: (reviewer: string) => void;
 }) {
   return (
     <section className="panel">
@@ -460,12 +701,47 @@ function ApprovalView({
       ) : (
         <div className="feedback-list">
           {approvals.map((approval) => (
-            <article className="feedback-item warning" key={approval.id}>
+            <article className="approval-item" key={approval.id}>
               <div>
                 <span className="eyebrow">{approval.state}</span>
                 <h3>{approval.reason}</h3>
+                <code>{approval.action?.tool ?? "tool action"}</code>
               </div>
               <span className="detail-count">{approval.rules.length} rules</span>
+              <div className="approval-form">
+                <label htmlFor={`reviewer-${approval.id}`}>Reviewer</label>
+                <input
+                  id={`reviewer-${approval.id}`}
+                  onChange={(event) => setReviewer(event.target.value)}
+                  value={reviewer}
+                />
+                <label htmlFor={`reason-${approval.id}`}>Reason</label>
+                <textarea
+                  id={`reason-${approval.id}`}
+                  onChange={(event) => setReason(event.target.value)}
+                  rows={3}
+                  value={reason}
+                />
+                <div className="button-row">
+                  <button
+                    className="secondary-button danger-button"
+                    disabled={approvalBusy !== null || !reviewer.trim() || !reason.trim()}
+                    onClick={() => onDecision(approval.id, "reject")}
+                    type="button"
+                  >
+                    <XCircle aria-hidden="true" /> Reject
+                  </button>
+                  <button
+                    className="primary-button"
+                    disabled={approvalBusy !== null || !reviewer.trim() || !reason.trim()}
+                    onClick={() => onDecision(approval.id, "approve")}
+                    type="button"
+                  >
+                    <CheckCircle2 aria-hidden="true" />
+                    {approvalBusy === approval.id ? "Submitting..." : "Approve once"}
+                  </button>
+                </div>
+              </div>
             </article>
           ))}
         </div>
@@ -476,8 +752,18 @@ function ApprovalView({
 
 function MemoryView({
   memories,
+  onSearch,
+  query,
+  setQuery,
+  setTags,
+  tags,
 }: {
   memories: MemoryRecord[];
+  onSearch: () => void;
+  query: string;
+  setQuery: (query: string) => void;
+  setTags: (tags: string) => void;
+  tags: string;
 }) {
   return (
     <section className="panel">
@@ -487,6 +773,23 @@ function MemoryView({
           <h3>Workspace memory</h3>
         </div>
         <MemoryStick aria-hidden="true" className="panel-icon" />
+      </div>
+      <div className="search-row">
+        <input
+          aria-label="Memory query"
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search memory"
+          value={query}
+        />
+        <input
+          aria-label="Memory tags"
+          onChange={(event) => setTags(event.target.value)}
+          placeholder="pytest, policy"
+          value={tags}
+        />
+        <button className="secondary-button" onClick={onSearch} type="button">
+          <Search aria-hidden="true" /> Search
+        </button>
       </div>
       {memories.length === 0 ? (
         <div className="memory-grid">
@@ -581,6 +884,10 @@ function CredentialsView({ credentials }: { credentials: CredentialStatus | null
           <dd>{credentials?.model ?? "glm-5.2"}</dd>
         </div>
       </dl>
+      <p className="inline-note">
+        Configure credentials on the server with the CLI, an environment variable, or a
+        Docker Secret. Secret values are never accepted or displayed in this console.
+      </p>
     </section>
   );
 }

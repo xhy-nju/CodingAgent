@@ -50,6 +50,10 @@ describe("api client", () => {
 
     expect(approvals.approvals[0].state).toBe("pending");
     expect(memory.records[0].content).toBe("Focused pytest first");
-    expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/memory?scope=project", undefined);
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/memory?scope=project",
+      expect.objectContaining({ credentials: "same-origin" }),
+    );
   });
 });
