@@ -117,6 +117,69 @@ def test_injected_keyring_token_is_redacted_from_run_and_approval_rows(
     _assert_approval_and_run_rows_are_redacted(tmp_path, token, snapshot)
 
 
+def _persist_token_action_id(tmp_path: Path, token: str, snapshot: CredentialSnapshot) -> Path:
+    store = SqliteStore(tmp_path / "agent.db", credential_snapshot=snapshot)
+    run_id = store.create_run("task", str(tmp_path), "strict_demo", "mock")
+    ApprovalService(store).create(
+        run_id=run_id,
+        action=Action(
+            id=token,
+            kind=ActionKind.TOOL,
+            tool="run_command",
+            args={},
+            reason="approval action",
+            expectation="approval",
+        ),
+        rules=["tool.requires_approval"],
+        reason="approval reason",
+        step_index=0,
+        feedback=[],
+    )
+    return store.db_path
+
+
+def _assert_action_id_is_redacted(db_path: Path, token: str) -> None:
+    with sqlite3.connect(db_path) as conn:
+        action_id, action_json = conn.execute(
+            "select action_id, action_json from approvals"
+        ).fetchone()
+    assert token not in action_id
+    assert token not in action_json
+    assert "provider_token:redacted" in action_id
+    assert "provider_token:redacted" in action_json
+
+
+def test_docker_secret_action_id_is_redacted_before_and_after_rotation(
+    tmp_path: Path, monkeypatch
+) -> None:
+    token = "docker-secret-token-for-action-id-test"
+    secret = tmp_path / "openai_api_key"
+    secret.write_text(f"{token}\n", encoding="utf-8")
+    monkeypatch.setenv("OPENAI_API_KEY_FILE", str(secret))
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    db_path = _persist_token_action_id(tmp_path, token, CredentialService().resolve())
+
+    _assert_action_id_is_redacted(db_path, token)
+    secret.write_text("rotated-docker-secret-token\n", encoding="utf-8")
+    _assert_action_id_is_redacted(db_path, token)
+
+
+def test_keyring_action_id_is_redacted_before_and_after_rotation(
+    tmp_path: Path, monkeypatch
+) -> None:
+    token = "keyring-token-for-action-id-test"
+    monkeypatch.delenv("OPENAI_API_KEY_FILE", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    keyring = FakeKeyring(token)
+    db_path = _persist_token_action_id(
+        tmp_path, token, CredentialService(keyring_backend=keyring).resolve()
+    )
+
+    _assert_action_id_is_redacted(db_path, token)
+    keyring.token = "rotated-keyring-token"
+    _assert_action_id_is_redacted(db_path, token)
+
+
 def test_approval_lifecycle_is_persisted_with_original_action(tmp_path: Path) -> None:
     store = SqliteStore(tmp_path / "agent.db")
     run_id = store.create_run(

@@ -128,6 +128,7 @@ class SqliteStore:
         return dict(row)
 
     def create_approval(self, request: ApprovalRequest) -> None:
+        redacted_action = self._redact(request.action.model_dump(mode="json"))
         with self._connect() as conn:
             conn.execute(
                 (
@@ -137,8 +138,8 @@ class SqliteStore:
                 (
                     request.id,
                     request.run_id,
-                    request.action_id,
-                    self._json(request.action.model_dump(mode="json")),
+                    redacted_action["id"],
+                    json.dumps(redacted_action, ensure_ascii=False),
                     request.state.value,
                     self._json(request.rules),
                     self._redact(request.reason),

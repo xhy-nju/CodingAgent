@@ -7,6 +7,7 @@ import httpx
 
 from coding_agent.domain import FeedbackSignal, MemoryRecord
 from coding_agent.credentials import CredentialService, CredentialSnapshot
+from coding_agent.redaction import redact_value
 
 
 @dataclass(frozen=True)
@@ -118,8 +119,17 @@ class RealLLMProvider(LLMProvider):
         if not self.provider_token:
             raise RuntimeError("OPENAI_API_KEY is not configured")
 
-        memory_text = "\n".join(f"- {record.content}" for record in context.memories)
-        user_content = f"Task: {context.task}\nStep: {context.step_index}"
+        task = redact_value(context.task, self.provider_token)[0]
+        feedback = redact_value(
+            [item.model_dump(mode="json") for item in context.feedback], self.provider_token
+        )[0]
+        memory_text = "\n".join(
+            f"- {redact_value(record.content, self.provider_token)[0]}"
+            for record in context.memories
+        )
+        user_content = f"Task: {task}\nStep: {context.step_index}"
+        if feedback:
+            user_content += f"\nFeedback:\n{json.dumps(feedback, ensure_ascii=False)}"
         if memory_text:
             user_content += f"\nRelevant memory:\n{memory_text}"
         response = httpx.post(

@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import pytest
 from keyring.errors import KeyringError, PasswordDeleteError
 
 from coding_agent.credentials import CredentialService, CredentialSnapshot
+from coding_agent.domain import FeedbackSignal, FeedbackType, MemoryRecord
 from coding_agent.llm import LLMContext, RealLLMProvider
 
 
@@ -214,6 +216,68 @@ def test_real_provider_posts_openai_compatible_request(monkeypatch) -> None:
     assert captured["json"]["messages"][1]["content"] == "Task: fix tests\nStep: 2"
     assert captured["json"]["max_tokens"] == 512
     assert captured["timeout"] == 30
+
+
+def test_real_provider_redacts_context_values_before_constructing_messages(monkeypatch) -> None:
+    token = "provider-token-for-message-redaction-test"
+    captured: dict[str, Any] = {}
+
+    class FakeResponse:
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict[str, Any]:
+            return {"choices": [{"message": {"content": "{\"kind\":\"final\"}"}}]}
+
+    def fake_post(
+        url: str,
+        *,
+        headers: dict[str, str],
+        json: dict[str, Any],
+        timeout: int,
+    ) -> FakeResponse:
+        captured["messages"] = json["messages"]
+        return FakeResponse()
+
+    feedback = FeedbackSignal(
+        type=FeedbackType.TEST_FAILED,
+        severity="error",
+        summary=f"feedback summary {token}",
+        details={"raw": token},
+    )
+    memory = MemoryRecord(
+        id="mem-1",
+        scope="project",
+        kind="summary",
+        tags=["provider"],
+        content=f"memory content {token}",
+        source_run_id=None,
+        confidence=1.0,
+        sensitive=False,
+    )
+    context = LLMContext(
+        task=f"task {token}",
+        step_index=2,
+        feedback=[feedback],
+        memories=(memory,),
+    )
+    provider = RealLLMProvider(
+        provider_token=token,
+        base_url="https://example.test/v1",
+        model="demo-model",
+        enabled=True,
+    )
+    monkeypatch.setattr("coding_agent.llm.httpx.post", fake_post)
+
+    provider.next_action(context)
+
+    serialized = json.dumps(captured["messages"])
+    assert token not in serialized
+    assert "provider_token:redacted" in serialized
+    assert "Feedback:" in captured["messages"][1]["content"]
+    assert feedback.summary.endswith(token)
+    assert feedback.details["raw"] == token
+    assert memory.content.endswith(token)
 
 
 @pytest.mark.parametrize("content", [None, "", "   ", 42])
