@@ -1,50 +1,63 @@
 # CodingAgent
 
-CodingAgent 是 AI4SE 期末项目 A 类方向的 Coding Agent Harness。项目目标是从零实现一个可治理、可测试、可复现、可演示的 coding agent 运行外壳，而不是把现成 agent 框架简单配置后作为交付物。
+CodingAgent 是 AI4SE 期末项目 A 类方向的 Coding Agent Harness。项目自行实现 Agent 主循环、严格动作协议、工具分发、治理护栏、HITL 审批、反馈闭环、记忆和审计机制，不使用现成 Agent 框架充当主体。
 
-核心机制包括：严格 Action Protocol、mock/real LLM 抽象、工具分发、治理护栏、HITL 审批、反馈闭环、记忆机制、WebUI 和 Docker 分发。
+## 主要贡献
 
-## 当前状态
+- **治理护栏**：所有模型动作先通过确定性策略检查，越界路径和危险命令在执行前阻断。
+- **反馈闭环**：测试、命令、文件差异、审批和 Schema 错误统一转成结构化反馈回灌下一步。
+- **记忆机制**：SQLite 持久化项目级摘要，按 scope、标签和关键词确定性检索。
+- **工具分发**：严格 Action JSON 经解析、Guardrail 和 Dispatcher 后才能调用文件、测试、命令及 Memory 工具。
 
-已完成的主线能力：
+项目同时提供可重复的 Mock LLM 演示和真实 OpenAI-compatible LLM 模式。二者共用同一套 AgentLoop、护栏、工具、反馈、Memory、审批与审计链路。
 
-- Python 核心 agent loop、SQLite 审计/记忆存储、事件流。
-- Guardrail、redaction、approval、反馈信号与记忆写入。
-- Typer CLI 与 FastAPI API。
-- React + Vite + TypeScript WebUI。
-- Mock LLM 默认演示与可选 OpenAI-compatible 真实 LLM gate。
-- Docker、Compose、GitHub Actions、GitLab CI 分发骨架。
+## WebUI 功能
+
+- Dashboard：Mock/Real 模式切换、策略和凭据状态、最近运行摘要。
+- Mock 演示：一键执行 bugfix 反馈闭环和危险路径拦截。
+- Real 运行：管理员登录后输入任务，真实模型在隔离示例工作区中驱动 Agent。
+- Run Detail：SSE 实时事件、步骤状态和结构化反馈。
+- Approvals：查看待审批动作，填写审核人和理由，批准一次或拒绝。
+- Memory：按关键词和标签搜索项目记忆。
+- Credentials：仅显示配置状态和来源，不接收、不回显 API Key。
+- Policies/Settings：查看当前策略和运行配置。
+
+匿名用户可以运行 Mock 演示。真实 LLM、审批、Memory 和管理操作要求管理员签名会话。
 
 ## 技术栈
 
-- 后端与核心：Python 3.11+、Pydantic v2、FastAPI、Typer、SQLite。
-- 前端：React、Vite、TypeScript、Vitest。
+- 后端：Python 3.11+、FastAPI、Pydantic v2、Typer、SQLite、httpx、keyring。
+- 前端：React、TypeScript、Vite、Vitest、Lucide Icons。
 - 测试：pytest、Vitest。
-- 分发：Docker、Docker Compose。
-- 真实 LLM 接口：OpenAI-compatible API，默认 `OPENAI_BASE_URL=https://njusehub.info/v1`，默认模型 `glm-5.2`。
+- 分发：Docker、Docker Compose、Nginx、GitHub Actions、GitLab CI、GHCR。
+- 默认模型接口：`https://njusehub.info/v1`，模型 `glm-5.2`。
+
+## 目录结构
+
+```text
+.
+├── src/coding_agent/       # AgentLoop、API、认证、凭据、Store、工具与策略
+├── frontend/               # React 运维控制台
+├── config/policies/        # strict_demo 与 balanced_dev 策略
+├── demos/sample_workspace/ # 隔离 bugfix 示例工程
+├── deploy/nginx.conf       # HTTPS 反向代理模板
+├── tests/                  # 后端与机制测试
+├── docs/                   # 设计、计划、部署与冷启动证据
+├── Dockerfile
+├── docker-compose.yml
+└── docker-compose.production.yml
+```
 
 ## 本地运行
 
-先安装 Python 包：
-
 ```bash
 pip install -e .[dev]
-```
-
-运行两个确定性演示：
-
-```bash
 python -m coding_agent demo bugfix
 python -m coding_agent demo dangerous-action
-```
-
-启动 API：
-
-```bash
 uvicorn coding_agent.api:app --reload
 ```
 
-前端开发模式：
+访问 `http://127.0.0.1:8000`。前端开发模式：
 
 ```bash
 cd frontend
@@ -52,86 +65,93 @@ npm ci
 npm run dev
 ```
 
-## Docker 演示
+## 凭据配置
 
-创建本地环境文件：
+本机推荐使用系统 Keyring。所有输入均隐藏，状态命令不会显示密钥片段：
+
+```bash
+python -m coding_agent credentials set
+python -m coding_agent credentials status
+python -m coding_agent credentials update
+python -m coding_agent credentials clear
+```
+
+解析优先级为 Docker Secret、`OPENAI_API_KEY` 环境变量、系统 Keyring。真实连通性探针：
+
+```bash
+python -m coding_agent llm probe
+```
+
+`.env` 是服务器上的明文文件，只应用于本地或受控部署，必须限制权限且不得提交。生产环境优先使用 `OPENAI_API_KEY_FILE=/run/secrets/openai_api_key`。
+
+## Docker 演示
 
 ```bash
 cp .env.example .env
-```
-
-`ADMIN_PASSWORD` 当前是部署预留项，应用尚未实施管理员认证。不要把服务直接暴露到公网；如需远程访问，应先在反向代理层配置认证。公开演示时保持：
-
-```env
-ENABLE_REAL_LLM=false
-```
-
-启动 Docker Compose：
-
-```bash
-docker compose up --build
-```
-
-## 真实 LLM 连通性验证
-
-在 `.env` 中配置 `OPENAI_API_KEY`、`OPENAI_BASE_URL`、`OPENAI_MODEL`，并设置：
-
-```env
-ENABLE_REAL_LLM=true
-```
-
-重新构建容器后执行一次安全探测：
-
-```bash
 docker compose up --build -d
-docker compose exec coding-agent python -m coding_agent llm probe
-```
-
-探测只发送固定的低 token 请求并验证严格 Action Protocol，不会创建 Agent
-运行、执行工具或修改工作区。输出不会包含 API Key 或模型原始响应。Mock 演示仍使用：
-
-```bash
-docker compose exec coding-agent python -m coding_agent demo bugfix
-docker compose exec coding-agent python -m coding_agent demo dangerous-action
-```
-
-查看日志：
-
-```bash
+docker compose ps
 docker compose logs -f coding-agent
 ```
 
-Docker 版本会在 `8000` 端口同时提供 API 和构建后的 WebUI。
+在 `.env` 中至少修改：
 
-## 阿里云 Ubuntu 部署要点
+```env
+ADMIN_PASSWORD=使用高强度管理员密码
+SESSION_SECRET=至少32位随机字符串
+ENABLE_REAL_LLM=false
+COOKIE_SECURE=false
+```
 
-1. 在安全组中开放选定端口，默认示例是 `8000`。
-2. 服务器上只保留 `.env`，不要把真实 key 提交到仓库。
-3. 在完成应用级管理员认证前，通过反向代理认证限制访问；`ADMIN_PASSWORD` 目前仅为预留配置。
-4. 公开演示保持 `ENABLE_REAL_LLM=false`，避免误消耗真实模型额度。
-5. 使用 `docker compose logs -f coding-agent` 查看运行日志。
-6. 真实模型探测仅允许通过容器内 CLI 运行，不提供浏览器执行入口。
+需要真实模式时设置 `ENABLE_REAL_LLM=true` 并配置密钥。Mock 演示不依赖外部模型，适合课程现场展示。
 
-## CI
+## 生产部署
 
-GitHub Actions 覆盖后端测试、前端测试/构建和 Docker build。GitLab CI 提供课程平台常见的 `unit-test` job，运行：
+生产 Compose 从 GHCR 拉取镜像，仅把应用绑定到 `127.0.0.1:8000`，由 Nginx 提供公网 HTTPS：
+
+```bash
+docker compose -f docker-compose.production.yml pull
+docker compose -f docker-compose.production.yml up -d
+```
+
+完整阿里云 Ubuntu 步骤见 [docs/deployment-aliyun.md](docs/deployment-aliyun.md)。生产环境必须使用 Docker Secret、非默认管理员密码、随机 Session Secret 和 HTTPS。
+
+## 验证命令
 
 ```bash
 pytest -q
+cd frontend && npm test && npm run build
+docker compose config --quiet
+docker compose build
 ```
+
+危险动作演示预期退出码为 1，因为 Guardrail 正确阻止了越界操作，这不代表程序异常。
+
+## CI 与镜像
+
+- GitHub Actions：后端、前端、Docker、Compose 和敏感信息扫描。
+- GitLab CI：保留课程平台常见的 `unit-test` job。
+- `v*` 标签或手工触发 `publish-image.yml` 后发布 GHCR 镜像。
+
+公开镜像：尚未发布，推送分支并完成 GitHub Actions 后填写实际 `ghcr.io/...` 地址。
+
+公开 WebUI：尚未部署，完成阿里云 HTTPS 部署并从外网验证后填写实际 URL。
 
 ## 安全边界
 
-真实 provider token 和任何凭据都不能提交到仓库。`.env`、本地数据库、运行日志、本地 keyring 缓存和导出报告中的敏感字段都必须保持在本地并被 `.gitignore` 或 `.dockerignore` 排除。
+- API Key 不进入浏览器、提示词、日志、事件、SQLite 或 Git 历史。
+- Docker Secret、环境变量和 Keyring 密钥均在持久化前统一脱敏。
+- 管理员会话使用 HMAC 签名、HttpOnly、SameSite=Strict Cookie；HTTPS 部署启用 Secure。
+- 真实运行只操作复制到 `CODING_AGENT_DATA_DIR` 下的示例工程。
+- HITL 批准使用状态机和数据库条件更新保证单次批准、单次执行。
+- 跨域管理写请求被拒绝。
 
-## GitHub 仓库
+## 已知限制
 
-远程仓库：`https://github.com/xhy-nju/CodingAgent.git`
+- 当前是单管理员、单进程课程演示系统，不包含多用户 RBAC 和外部身份提供商。
+- 后台执行器位于应用进程内；容器重启会将运行中任务标记失败，待审批任务可恢复。
+- SQLite 适合单机部署，不面向多副本水平扩展。
+- 真实模型行为受外部服务稳定性、额度和兼容性影响，因此 CI 和默认演示使用 Mock。
 
-常用检查命令：
+## 仓库
 
-```bash
-git status
-git remote -v
-git branch --show-current
-```
+[xhy-nju/CodingAgent](https://github.com/xhy-nju/CodingAgent)

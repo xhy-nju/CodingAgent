@@ -190,3 +190,20 @@
 - Mock verification: bugfix succeeded; dangerous-action was blocked as designed.
 - Sanitized real-provider verification: `ok=true`, `model=glm-5.2`, `protocol_valid=true`, `action_kind=final`.
 - Secret hygiene: no API key, Authorization header, or raw model response was added to Git.
+
+## 2026-07-11 - 完整工程交付
+
+- 人类所有者选择：匿名开放 Mock 演示，真实 LLM、审批和管理能力要求管理员登录。
+- Codex 使用 Superpowers 完成设计和实施计划，随后在 linked worktree 中实施。
+- 凭据任务先由子代理实现并独立审查；审查发现非环境变量密钥未贯穿脱敏、审批字段遗漏和提示词泄露路径，修复后全量测试达到 115 项。
+- 人类所有者要求减少重复复核后，Codex 直接完成管理员认证、运行恢复、真实 Agent、SSE/HITL、WebUI 和生产分发，每项仅在实现后集中运行测试并修正失败。
+- 提交：
+  - `e57a2f9..b078521`：安全凭据生命周期与全链路脱敏。
+  - `9a542b4`：管理员签名会话。
+  - `5473d04`：持久化运行生命周期与恢复。
+  - `35111d0`：真实模型驱动受治理 AgentLoop。
+  - `0c2b9d7`：实时 SSE 与持久化审批恢复。
+  - `79361b5`：完整 Mock/Real WebUI。
+  - `90a00ff`：生产 Compose、Nginx、CI 与 GHCR。
+- 未伪造的外部证据：公开镜像、PR/CI 链接和阿里云公网 URL 要在实际推送和部署成功后补写。
+- 最终本地验收：后端 139 项、前端 10 项通过，生产构建、Docker 构建和 Compose 配置成功；容器健康，Mock 演示和真实 `glm-5.2` 探针成功，浏览器控制台无错误。

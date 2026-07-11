@@ -1,8 +1,8 @@
 # SPEC.md
 
-> 状态：阶段 1 规约文档，基于 Superpowers brainstorming 产出。
-> 日期：2026-07-07。
-> 实现边界：本文档完成后仍不能直接写实现代码，必须先完成 `PLAN.md` 的 writing-plans 流程和冷启动验证。
+> 状态：规约已实现，工程交付验证进行中。
+> 初版日期：2026-07-07；实现状态更新：2026-07-11。
+> 实现证据：`PLAN.md`、`SPEC_PROCESS.md`、`AGENT_LOG.md` 及自动化测试记录。
 
 ## 1. 问题陈述
 
@@ -284,4 +284,4 @@ CI 不依赖真实 LLM，不需要 provider token。所有机制测试使用 moc
 
 ## 15. 版本门禁
 
-当前版本只完成阶段 1 规约。下一步是用户审核本文档和 Superpowers 设计稿。审核通过后，进入 Superpowers `writing-plans`，生成细粒度 `PLAN.md`。只有 `SPEC.md`、`PLAN.md` 和冷启动验证都完成后，才能开始写 harness 实现代码。
+阶段 1 规约、Writing Plans、opencode 冷启动验证和正式实现均已完成。当前实现包含 Mock/Real 双模式、完整 AgentLoop、确定性治理护栏、反馈、Memory、工具分发、HITL、管理员会话、WebUI、Docker、CI 与生产部署模板。公开 GHCR 镜像和公网 WebUI URL 必须在实际推送与阿里云部署成功后记录，不能用占位地址冒充完成证据。

@@ -19,6 +19,37 @@
 - Every implementation task uses TDD: write failing test, run red, implement minimal code, run green, commit.
 - Cold-start validation is still required after this plan is reviewed; do not implement code before cold-start validation is complete.
 
+## 执行状态与提交证据
+
+原始实现计划已经完成，关键提交如下：
+
+- [x] Task 1：领域模型，`4c510f9`。
+- [x] Task 2：策略与 Action Parser，`325156f`。
+- [x] Task 3：SQLite Store 与 EventBus，`5332a36`。
+- [x] Task 4：Guardrail、脱敏和 HITL，`3d1a07e`。
+- [x] Task 5：工具分发与安全文件工具，`3501b46`。
+- [x] Task 6：反馈解析，`7c76f1a`。
+- [x] Task 7：命令工具与示例工程，`6e53ec2`。
+- [x] Task 8：确定性 Memory，`cc65025`。
+- [x] Task 9：Mock LLM 与 AgentLoop，`ac5137c`。
+- [x] Task 10：CLI 与演示，`3a2de65`。
+- [x] Task 11：FastAPI 与 SSE，`b829da6`。
+- [x] Task 12：前端类型与 API Client，`7132695`。
+- [x] Task 13：WebUI Dashboard，`3af238d`。
+- [x] Task 14：真实 LLM Gate，`47aee7c`。
+- [x] Task 15：Docker、CI 与部署骨架，`392672d`。
+
+2026-07-11 工程交付增量：
+
+- [x] 安全凭据生命周期和全链路脱敏，`e57a2f9..b078521`。
+- [x] 管理员签名会话，`9a542b4`。
+- [x] 持久化运行生命周期与恢复，`5473d04`。
+- [x] 真实模型驱动同一 AgentLoop，`35111d0`。
+- [x] 实时 SSE 与持久化审批恢复，`0c2b9d7`。
+- [x] 完整 Mock/Real WebUI，`79361b5`。
+- [x] 生产 Compose、Nginx、CI 与 GHCR 工作流，`90a00ff`。
+- [ ] 最终总回归、浏览器验收和课程证据更新：正在执行。
+
 ---
 
 ## File Structure
