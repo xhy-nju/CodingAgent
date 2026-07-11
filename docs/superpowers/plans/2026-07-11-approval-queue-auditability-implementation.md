@@ -96,5 +96,5 @@ Commit `0a7803e` added shell-free command normalization, guardrail checks for bo
 - Approval UI commits: `480bae4`, `897c50e`.
 - Real observation-loop commit: `0a7803e`.
 - Backend: `145 passed`.
-- Frontend: `11 passed`; production build passed.
+- Frontend: `12 passed`; production build passed.
 - Runtime: Docker service healthy; real run `run-ea1154bb1f8a` succeeded; browser console had no warnings or errors.

@@ -241,4 +241,39 @@ describe("App", () => {
     );
     expect(await screen.findByText("action-next")).toBeInTheDocument();
   });
+
+  it("keeps a successful decision when the queue refresh fails", async () => {
+    vi.mocked(fetchApprovals)
+      .mockResolvedValueOnce({
+        approvals: [
+          {
+            id: "approval-refresh",
+            run_id: "run-refresh",
+            action_id: "action-refresh",
+            state: "pending",
+            rules: ["tool.requires_approval"],
+            reason: "Manual review required",
+            action: {
+              kind: "tool",
+              tool: "run_command",
+              args: { command: ["pytest"] },
+              reason: "run tests",
+              expectation: "test result",
+            },
+          },
+        ],
+      })
+      .mockRejectedValueOnce(new Error("refresh offline"));
+    render(<App />);
+
+    await userEvent.click(await screen.findByRole("button", { name: /Approvals/i }));
+    const card = (await screen.findByText("action-refresh")).closest("article");
+    expect(card).not.toBeNull();
+    await userEvent.type(within(card!).getByLabelText("Reviewer"), "course-admin");
+    await userEvent.type(within(card!).getByLabelText("Reason"), "Reviewed safe test command");
+    await userEvent.click(within(card!).getByRole("button", { name: "Approve once" }));
+
+    expect(await screen.findByText("Approval saved, but queue refresh failed")).toBeInTheDocument();
+    expect(screen.queryByText("action-refresh")).not.toBeInTheDocument();
+  });
 });

@@ -320,8 +320,13 @@ export default function App() {
         reviewReason.trim(),
       );
       setRun(result.run);
-      const approvalList = await fetchApprovals();
-      setApprovals(approvalList.approvals);
+      setApprovals((current) => current.filter((item) => item.id !== approvalId));
+      try {
+        const approvalList = await fetchApprovals();
+        setApprovals(approvalList.approvals);
+      } catch {
+        setError("Approval saved, but queue refresh failed");
+      }
     } catch (reason: unknown) {
       setError(reason instanceof Error ? reason.message : "Approval failed");
     } finally {

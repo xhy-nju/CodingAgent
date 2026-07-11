@@ -114,13 +114,13 @@
 
 **画面操作：**
 
-1. 切换到终端，展示预先运行完成的 `pytest` 结果和前端测试结果，不必现场等待：后端应显示 `145 passed`，前端应显示 `11 passed`。
+1. 切换到终端，展示预先运行完成的 `pytest` 结果和前端测试结果，不必现场等待：后端应显示 `145 passed`，前端应显示 `12 passed`。
 2. 切换 GitHub Actions，展示最后一次绿色运行。
 3. 切换 Pull Requests，展示分支、评审和合并历史。
 
 **旁白：**
 
-> 项目采用 TDD，后端当前 145 项测试通过，前端 11 项测试通过，并完成生产构建。测试覆盖 action parser、agent loop、工具、guardrail、HITL 状态机、反馈、记忆、凭据和 API。GitHub Actions 在 push 和 PR 上自动运行测试并构建镜像；提交历史保留了 spec、plan、独立任务和人工修复记录。
+> 项目采用 TDD，后端当前 145 项测试通过，前端 12 项测试通过，并完成生产构建。测试覆盖 action parser、agent loop、工具、guardrail、HITL 状态机、反馈、记忆、凭据和 API。GitHub Actions 在 push 和 PR 上自动运行测试并构建镜像；提交历史保留了 spec、plan、独立任务和人工修复记录。
 
 ### 6:35-7:05 Docker 分发与交付收尾
 
