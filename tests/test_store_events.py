@@ -1,7 +1,27 @@
+import sqlite3
 from pathlib import Path
 
+from keyring.errors import PasswordDeleteError
+
+from coding_agent.credentials import CredentialService
 from coding_agent.events import EventBus
 from coding_agent.store import SqliteStore
+
+
+class FakeKeyring:
+    def __init__(self, token: str) -> None:
+        self.token = token
+
+    def get_password(self, service: str, username: str) -> str | None:
+        return self.token
+
+    def set_password(self, service: str, username: str, token: str) -> None:
+        self.token = token
+
+    def delete_password(self, service: str, username: str) -> None:
+        if not self.token:
+            raise PasswordDeleteError("credential not found")
+        self.token = ""
 
 
 def test_create_run_and_append_event(tmp_path: Path) -> None:
@@ -81,3 +101,38 @@ def test_structured_event_and_memory_values_are_redacted_at_persistence(
     assert exact_token not in serialized
     assert "sk-testknownformat1234567890" not in serialized
     assert "provider_token:redacted" in serialized
+
+
+def test_docker_secret_token_is_redacted_before_event_persistence(tmp_path: Path, monkeypatch) -> None:
+    token = "docker-secret-token-for-persistence-test"
+    secret = tmp_path / "openai_api_key"
+    secret.write_text(f"{token}\n", encoding="utf-8")
+    monkeypatch.setenv("OPENAI_API_KEY_FILE", str(secret))
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    store = SqliteStore(tmp_path / "agent.db")
+    run_id = store.create_run("task", str(tmp_path), "strict_demo", "mock")
+
+    store.append_event(run_id, "llm.output", {"raw": f"provider returned {token}"})
+
+    with sqlite3.connect(store.db_path) as conn:
+        persisted = conn.execute("select payload_json from events").fetchone()[0]
+    assert token not in persisted
+    assert "provider_token:redacted" in persisted
+
+
+def test_injected_keyring_token_is_redacted_before_event_persistence(
+    tmp_path: Path, monkeypatch
+) -> None:
+    token = "keyring-token-for-persistence-test"
+    monkeypatch.delenv("OPENAI_API_KEY_FILE", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    snapshot = CredentialService(keyring_backend=FakeKeyring(token)).resolve()
+    store = SqliteStore(tmp_path / "agent.db", credential_snapshot=snapshot)
+    run_id = store.create_run("task", str(tmp_path), "strict_demo", "mock")
+
+    store.append_event(run_id, "llm.output", {"raw": f"provider returned {token}"})
+
+    with sqlite3.connect(store.db_path) as conn:
+        persisted = conn.execute("select payload_json from events").fetchone()[0]
+    assert token not in persisted
+    assert "provider_token:redacted" in persisted

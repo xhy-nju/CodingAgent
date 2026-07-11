@@ -83,6 +83,8 @@ def test_hidden_credential_commands_set_update_and_clear(monkeypatch) -> None:
     assert set_result.exit_code == 0
     assert update_result.exit_code == 0
     assert clear_result.exit_code == 0
+    assert "first-token" not in set_result.stdout
+    assert "second-token" not in update_result.stdout
     assert service.resolve().configured is False
     assert "removed" in clear_result.stdout.lower()
     assert "environment" in clear_result.stdout.lower()

@@ -1,20 +1,23 @@
 from __future__ import annotations
 
 import json
-import os
 import sqlite3
 import uuid
 from pathlib import Path
 from typing import Any
 
+from coding_agent.credentials import CredentialService, CredentialSnapshot
 from coding_agent.domain import ApprovalRequest, ApprovalState, MemoryRecord, RunStatus, ToolResult
 from coding_agent.redaction import redact_value
 
 
 class SqliteStore:
-    def __init__(self, db_path: Path) -> None:
+    def __init__(
+        self, db_path: Path, credential_snapshot: CredentialSnapshot | None = None
+    ) -> None:
         self.db_path = db_path
-        self.provider_token = os.environ.get("OPENAI_API_KEY")
+        snapshot = credential_snapshot or CredentialService().resolve()
+        self.provider_token = snapshot.provider_token
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_schema()
 

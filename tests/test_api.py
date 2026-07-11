@@ -1,10 +1,28 @@
 from pathlib import Path
 
+from keyring.errors import PasswordDeleteError
 from starlette.testclient import TestClient
 
 from coding_agent.api import create_app
+from coding_agent.credentials import CredentialService
 from coding_agent.memory import MemoryService
 from coding_agent.store import SqliteStore
+
+
+class FakeKeyring:
+    def __init__(self, token: str) -> None:
+        self.token = token
+
+    def get_password(self, service: str, username: str) -> str | None:
+        return self.token
+
+    def set_password(self, service: str, username: str, token: str) -> None:
+        self.token = token
+
+    def delete_password(self, service: str, username: str) -> None:
+        if not self.token:
+            raise PasswordDeleteError("credential not found")
+        self.token = ""
 
 
 def test_create_bugfix_demo_run(tmp_path: Path) -> None:
@@ -110,6 +128,43 @@ def test_sse_never_exposes_exact_or_known_format_tokens(tmp_path: Path, monkeypa
     assert response.status_code == 200
     assert exact_token not in response.text
     assert "sk-sseknownformat123456789012345" not in response.text
+    assert "provider_token:redacted" in response.text
+
+
+def test_sse_redacts_docker_secret_token(tmp_path: Path, monkeypatch) -> None:
+    token = "docker-secret-token-for-sse-test"
+    secret = tmp_path / "openai_api_key"
+    secret.write_text(f"{token}\n", encoding="utf-8")
+    monkeypatch.setenv("OPENAI_API_KEY_FILE", str(secret))
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    snapshot = CredentialService().resolve()
+    store = SqliteStore(tmp_path / "agent.db", credential_snapshot=snapshot)
+    run_id = store.create_run("task", str(tmp_path), "strict_demo", "mock")
+    store.append_event(run_id, "llm.output", {"raw": f"provider returned {token}"})
+    client = TestClient(create_app(data_dir=tmp_path))
+
+    response = client.get(f"/api/runs/{run_id}/events")
+
+    assert response.status_code == 200
+    assert token not in response.text
+    assert "provider_token:redacted" in response.text
+
+
+def test_sse_redacts_injected_keyring_token(tmp_path: Path, monkeypatch) -> None:
+    token = "keyring-token-for-sse-test"
+    monkeypatch.delenv("OPENAI_API_KEY_FILE", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    credentials = CredentialService(keyring_backend=FakeKeyring(token))
+    snapshot = credentials.resolve()
+    store = SqliteStore(tmp_path / "agent.db", credential_snapshot=snapshot)
+    run_id = store.create_run("task", str(tmp_path), "strict_demo", "mock")
+    store.append_event(run_id, "llm.output", {"raw": f"provider returned {token}"})
+    client = TestClient(create_app(data_dir=tmp_path, credential_service=credentials))
+
+    response = client.get(f"/api/runs/{run_id}/events")
+
+    assert response.status_code == 200
+    assert token not in response.text
     assert "provider_token:redacted" in response.text
 
 
