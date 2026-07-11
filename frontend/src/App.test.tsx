@@ -153,8 +153,9 @@ describe("App", () => {
   });
 
   it("shows auditable action context and keeps approval forms independent", async () => {
-    vi.mocked(fetchApprovals).mockResolvedValueOnce({
-      approvals: [
+    vi.mocked(fetchApprovals)
+      .mockResolvedValueOnce({
+        approvals: [
         {
           id: "approval-old",
           run_id: "run-old",
@@ -185,8 +186,27 @@ describe("App", () => {
             expectation: "all tests pass",
           },
         },
-      ],
-    });
+        ],
+      })
+      .mockResolvedValueOnce({
+        approvals: [
+          {
+            id: "approval-next",
+            run_id: "run-current",
+            action_id: "action-next",
+            state: "pending",
+            rules: ["tool.requires_approval"],
+            reason: "Next manual review",
+            action: {
+              kind: "tool",
+              tool: "run_command",
+              args: { command: "cat calculator.py" },
+              reason: "inspect calculator implementation",
+              expectation: "calculator source",
+            },
+          },
+        ],
+      });
     render(<App />);
 
     await userEvent.click(await screen.findByRole("button", { name: /Approvals/i }));
@@ -219,5 +239,6 @@ describe("App", () => {
       "course-admin",
       "Safe test command in isolated workspace",
     );
+    expect(await screen.findByText("action-next")).toBeInTheDocument();
   });
 });

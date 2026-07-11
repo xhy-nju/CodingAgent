@@ -188,12 +188,8 @@ export default function App() {
         setCredentials(credentialStatus);
         setAuth(authStatus);
         if (authStatus.authenticated) {
-          const [approvalList, memoryList] = await Promise.all([
-            fetchApprovals(),
-            fetchMemory(),
-          ]);
+          const memoryList = await fetchMemory();
           if (isMounted) {
-            setApprovals(approvalList.approvals);
             setMemories(memoryList.records);
           }
         }
@@ -291,8 +287,7 @@ export default function App() {
       setAuth(nextAuth);
       setPassword("");
       setLoginOpen(false);
-      const [approvalList, memoryList] = await Promise.all([fetchApprovals(), fetchMemory()]);
-      setApprovals(approvalList.approvals);
+      const memoryList = await fetchMemory();
       setMemories(memoryList.records);
     } catch (reason: unknown) {
       setError(reason instanceof Error ? reason.message : "Login failed");
@@ -325,7 +320,8 @@ export default function App() {
         reviewReason.trim(),
       );
       setRun(result.run);
-      setApprovals((current) => current.filter((item) => item.id !== approvalId));
+      const approvalList = await fetchApprovals();
+      setApprovals(approvalList.approvals);
     } catch (reason: unknown) {
       setError(reason instanceof Error ? reason.message : "Approval failed");
     } finally {
@@ -339,6 +335,19 @@ export default function App() {
       setMemories(result.records);
     } catch (reason: unknown) {
       setError(reason instanceof Error ? reason.message : "Memory search failed");
+    }
+  };
+
+  const selectTab = async (nextTab: Tab) => {
+    setActiveTab(nextTab);
+    if (nextTab !== "approvals" || !auth.authenticated) {
+      return;
+    }
+    try {
+      const approvalList = await fetchApprovals();
+      setApprovals(approvalList.approvals);
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : "Unable to refresh approvals");
     }
   };
 
@@ -367,7 +376,7 @@ export default function App() {
             <button
               className={activeTab === id ? "nav-button active" : "nav-button"}
               key={id}
-              onClick={() => setActiveTab(id)}
+              onClick={() => void selectTab(id)}
               type="button"
             >
               <Icon aria-hidden="true" />
