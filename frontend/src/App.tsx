@@ -170,8 +170,6 @@ export default function App() {
   const [loginOpen, setLoginOpen] = useState(false);
   const [password, setPassword] = useState("");
   const [loginBusy, setLoginBusy] = useState(false);
-  const [reviewer, setReviewer] = useState("");
-  const [reviewReason, setReviewReason] = useState("");
   const [approvalBusy, setApprovalBusy] = useState<string | null>(null);
   const [memoryQuery, setMemoryQuery] = useState("");
   const [memoryTags, setMemoryTags] = useState("");
@@ -314,6 +312,8 @@ export default function App() {
   const submitApproval = async (
     approvalId: string,
     decision: "approve" | "reject",
+    reviewer: string,
+    reviewReason: string,
   ) => {
     setApprovalBusy(approvalId);
     setError(null);
@@ -326,8 +326,6 @@ export default function App() {
       );
       setRun(result.run);
       setApprovals((current) => current.filter((item) => item.id !== approvalId));
-      setReviewer("");
-      setReviewReason("");
     } catch (reason: unknown) {
       setError(reason instanceof Error ? reason.message : "Approval failed");
     } finally {
@@ -432,10 +430,6 @@ export default function App() {
               approvalBusy={approvalBusy}
               approvals={approvals}
               onDecision={submitApproval}
-              reason={reviewReason}
-              reviewer={reviewer}
-              setReason={setReviewReason}
-              setReviewer={setReviewer}
             />
           ) : null}
           {activeTab === "memory" ? (
@@ -674,19 +668,35 @@ function ApprovalView({
   approvalBusy,
   approvals,
   onDecision,
-  reason,
-  reviewer,
-  setReason,
-  setReviewer,
 }: {
   approvalBusy: string | null;
   approvals: ApprovalRecord[];
-  onDecision: (id: string, decision: "approve" | "reject") => void;
-  reason: string;
-  reviewer: string;
-  setReason: (reason: string) => void;
-  setReviewer: (reviewer: string) => void;
+  onDecision: (
+    id: string,
+    decision: "approve" | "reject",
+    reviewer: string,
+    reason: string,
+  ) => void;
 }) {
+  const [drafts, setDrafts] = useState<
+    Record<string, { reviewer: string; reason: string }>
+  >({});
+
+  const updateDraft = (
+    approvalId: string,
+    field: "reviewer" | "reason",
+    value: string,
+  ) => {
+    setDrafts((current) => ({
+      ...current,
+      [approvalId]: {
+        reviewer: current[approvalId]?.reviewer ?? "",
+        reason: current[approvalId]?.reason ?? "",
+        [field]: value,
+      },
+    }));
+  };
+
   return (
     <section className="panel">
       <div className="panel-heading">
@@ -700,50 +710,93 @@ function ApprovalView({
         <p className="empty-state">No pending approvals.</p>
       ) : (
         <div className="feedback-list">
-          {approvals.map((approval) => (
-            <article className="approval-item" key={approval.id}>
-              <div>
-                <span className="eyebrow">{approval.state}</span>
-                <h3>{approval.reason}</h3>
-                <code>{approval.action?.tool ?? "tool action"}</code>
-              </div>
-              <span className="detail-count">{approval.rules.length} rules</span>
-              <div className="approval-form">
-                <label htmlFor={`reviewer-${approval.id}`}>Reviewer</label>
-                <input
-                  id={`reviewer-${approval.id}`}
-                  onChange={(event) => setReviewer(event.target.value)}
-                  value={reviewer}
-                />
-                <label htmlFor={`reason-${approval.id}`}>Reason</label>
-                <textarea
-                  id={`reason-${approval.id}`}
-                  onChange={(event) => setReason(event.target.value)}
-                  rows={3}
-                  value={reason}
-                />
-                <div className="button-row">
-                  <button
-                    className="secondary-button danger-button"
-                    disabled={approvalBusy !== null || !reviewer.trim() || !reason.trim()}
-                    onClick={() => onDecision(approval.id, "reject")}
-                    type="button"
-                  >
-                    <XCircle aria-hidden="true" /> Reject
-                  </button>
-                  <button
-                    className="primary-button"
-                    disabled={approvalBusy !== null || !reviewer.trim() || !reason.trim()}
-                    onClick={() => onDecision(approval.id, "approve")}
-                    type="button"
-                  >
-                    <CheckCircle2 aria-hidden="true" />
-                    {approvalBusy === approval.id ? "Submitting..." : "Approve once"}
-                  </button>
+          {approvals.map((approval) => {
+            const draft = drafts[approval.id] ?? { reviewer: "", reason: "" };
+            return (
+              <article className="approval-item" key={approval.id}>
+                <div>
+                  <span className="eyebrow">{approval.state}</span>
+                  <h3>{approval.reason}</h3>
+                  <code>{approval.action?.tool ?? "tool action"}</code>
                 </div>
-              </div>
-            </article>
-          ))}
+                <span className="detail-count">{approval.rules.length} rules</span>
+
+                <dl className="approval-context">
+                  <div>
+                    <dt>Run</dt>
+                    <dd><code>{approval.run_id}</code></dd>
+                  </div>
+                  <div>
+                    <dt>Action</dt>
+                    <dd><code>{approval.action_id}</code></dd>
+                  </div>
+                  <div className="approval-context-wide">
+                    <dt>Proposed arguments</dt>
+                    <dd><pre>{JSON.stringify(approval.action?.args ?? {}, null, 2)}</pre></dd>
+                  </div>
+                  <div>
+                    <dt>Model reason</dt>
+                    <dd>{approval.action?.reason ?? "Not provided"}</dd>
+                  </div>
+                  <div>
+                    <dt>Expected result</dt>
+                    <dd>{approval.action?.expectation ?? "Not provided"}</dd>
+                  </div>
+                  <div className="approval-context-wide">
+                    <dt>Triggered rules</dt>
+                    <dd className="approval-rules">
+                      {approval.rules.map((rule) => <code key={rule}>{rule}</code>)}
+                    </dd>
+                  </div>
+                </dl>
+
+                <div className="approval-form">
+                  <label htmlFor={`reviewer-${approval.id}`}>Reviewer</label>
+                  <input
+                    id={`reviewer-${approval.id}`}
+                    onChange={(event) => updateDraft(approval.id, "reviewer", event.target.value)}
+                    value={draft.reviewer}
+                  />
+                  <label htmlFor={`reason-${approval.id}`}>Reason</label>
+                  <textarea
+                    id={`reason-${approval.id}`}
+                    onChange={(event) => updateDraft(approval.id, "reason", event.target.value)}
+                    rows={3}
+                    value={draft.reason}
+                  />
+                  <div className="button-row">
+                    <button
+                      className="secondary-button danger-button"
+                      disabled={approvalBusy !== null || !draft.reviewer.trim() || !draft.reason.trim()}
+                      onClick={() => onDecision(
+                        approval.id,
+                        "reject",
+                        draft.reviewer,
+                        draft.reason,
+                      )}
+                      type="button"
+                    >
+                      <XCircle aria-hidden="true" /> Reject
+                    </button>
+                    <button
+                      className="primary-button"
+                      disabled={approvalBusy !== null || !draft.reviewer.trim() || !draft.reason.trim()}
+                      onClick={() => onDecision(
+                        approval.id,
+                        "approve",
+                        draft.reviewer,
+                        draft.reason,
+                      )}
+                      type="button"
+                    >
+                      <CheckCircle2 aria-hidden="true" />
+                      {approvalBusy === approval.id ? "Submitting..." : "Approve once"}
+                    </button>
+                  </div>
+                </div>
+              </article>
+            );
+          })}
         </div>
       )}
     </section>
