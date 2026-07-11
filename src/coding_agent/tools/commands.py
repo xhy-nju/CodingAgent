@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 import subprocess
 import time
 
@@ -12,6 +13,10 @@ def run_tests(args: dict[str, object], context: ToolContext) -> ToolResult:
     target = str(args.get("target", "."))
     command = ["python", "-m", "pytest", target]
     start = time.monotonic()
+    # Same-size edits within one timestamp tick can otherwise reuse stale bytecode.
+    for cache_dir in context.workspace.rglob("__pycache__"):
+        if cache_dir.is_dir():
+            shutil.rmtree(cache_dir)
     completed = subprocess.run(
         command,
         cwd=context.workspace,
