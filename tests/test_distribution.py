@@ -52,6 +52,8 @@ def test_ci_files_cover_backend_frontend_and_docker() -> None:
     assert "npm run build" in github_ci
     assert "docker build -t coding-agent:ci ." in github_ci
     assert "gitleaks/gitleaks-action" in github_ci
+    assert "pull-requests: read" in github_ci
+    assert "GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}" in github_ci
     assert "unit-test:" in gitlab_ci
     assert "pytest -q" in gitlab_ci
 
