@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import os
 import subprocess
 
 import pytest
@@ -29,6 +30,38 @@ def test_run_tests_produces_test_failed_feedback(tmp_path: Path) -> None:
 
     assert result.status == "failed"
     assert result.feedback[0].type is FeedbackType.TEST_FAILED
+
+
+def test_run_tests_ignores_stale_bytecode_after_same_size_rewrite(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.delenv("PYTHONPYCACHEPREFIX", raising=False)
+    monkeypatch.delenv("PYTHONDONTWRITEBYTECODE", raising=False)
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    source = workspace / "value.py"
+    source.write_text("def value():\n    return 1\n", encoding="utf-8")
+    (workspace / "test_value.py").write_text(
+        "from value import value\n\n\ndef test_value():\n    assert value() == 2\n",
+        encoding="utf-8",
+    )
+    fixed_timestamp = 1_700_000_000
+    os.utime(source, (fixed_timestamp, fixed_timestamp))
+    policy = load_policy("strict_demo", Path("config/policies"))
+    dispatcher = build_default_dispatcher(
+        GuardrailEngine(policy, workspace), workspace, policy
+    )
+
+    first = dispatcher.dispatch(_run_tests_action())
+    assert first.status == "failed"
+
+    source.write_text("def value():\n    return 2\n", encoding="utf-8")
+    os.utime(source, (fixed_timestamp, fixed_timestamp))
+
+    second = dispatcher.dispatch(_run_tests_action())
+
+    assert second.status == "ok"
+    assert second.feedback[0].type is FeedbackType.TEST_PASSED
 
 
 def test_sample_workspace_starts_with_failing_test() -> None:
