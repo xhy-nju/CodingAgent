@@ -73,9 +73,44 @@ def test_events_endpoint_returns_sse_lines(tmp_path: Path) -> None:
     assert "event: guardrail.checked" in response.text
     assert "event: tool.result" in response.text
     assert "event: feedback.recorded" in response.text
+    assert "id: " in response.text
     assert "event: llm.raw" not in response.text
     assert "event: feedback\n" not in response.text
     assert "data:" in response.text
+
+
+def test_events_endpoint_supports_sequence_cursor(tmp_path: Path) -> None:
+    store = SqliteStore(tmp_path / "agent.db")
+    run_id = store.create_run("task", str(tmp_path), "strict_demo", "mock")
+    store.append_event(run_id, "run.started", {"ordinal": 1})
+    first_sequence = store.list_events(run_id)[0]["sequence"]
+    store.append_event(run_id, "run.finished", {"status": "succeeded", "ordinal": 2})
+    from coding_agent.domain import RunStatus
+
+    store.update_run_status(run_id, RunStatus.SUCCEEDED)
+    client = TestClient(create_app(data_dir=tmp_path))
+
+    response = client.get(
+        f"/api/runs/{run_id}/events", params={"after": first_sequence}
+    )
+
+    assert response.status_code == 200
+    assert '"ordinal": 1' not in response.text
+    assert '"ordinal": 2' in response.text
+
+
+def test_real_run_events_require_admin_session(tmp_path: Path) -> None:
+    from coding_agent.domain import RunStatus
+
+    store = SqliteStore(tmp_path / "agent.db")
+    run_id = store.create_run("task", str(tmp_path), "strict_demo", "real")
+    store.append_event(run_id, "run.finished", {"status": "succeeded"})
+    store.update_run_status(run_id, RunStatus.SUCCEEDED)
+    client = TestClient(create_app(data_dir=tmp_path))
+
+    response = client.get(f"/api/runs/{run_id}/events")
+
+    assert response.status_code == 401
 
 
 def test_policy_endpoint_lists_profiles(tmp_path: Path) -> None:

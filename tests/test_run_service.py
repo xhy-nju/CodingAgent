@@ -33,6 +33,23 @@ class FailingProvider(LLMProvider):
         raise RuntimeError("transport failed with secret-real-token")
 
 
+class ApprovalThenFinalProvider(LLMProvider):
+    def next_action(self, context: LLMContext) -> str:
+        if context.step_index == 0:
+            return _action(
+                "run_command",
+                {"command": ["python", "-m", "pytest", "-q"]},
+            )
+        return json.dumps(
+            {
+                "kind": "final",
+                "args": {},
+                "reason": "approval complete",
+                "expectation": "stop",
+            }
+        )
+
+
 def _snapshot() -> CredentialSnapshot:
     return CredentialSnapshot(
         provider_token="secret-real-token",
@@ -105,3 +122,39 @@ def test_real_run_requires_enabled_configured_credentials(tmp_path: Path) -> Non
     else:
         raise AssertionError("real run should require enabled credentials")
 
+
+def test_waiting_approval_resumes_after_service_reconstruction(tmp_path: Path) -> None:
+    service = RunService(
+        data_dir=tmp_path,
+        credential_resolver=_snapshot,
+        real_provider_factory=lambda snapshot: ApprovalThenFinalProvider(),
+    )
+    run_id = service.create_real_run("Run reviewed command", background=False)
+    waiting = service.get_summary(run_id)
+    assert waiting.status == "waiting_approval"
+    assert waiting.pending_approval_id is not None
+
+    reconstructed = RunService(
+        data_dir=tmp_path,
+        credential_resolver=_snapshot,
+        real_provider_factory=lambda snapshot: ApprovalThenFinalProvider(),
+    )
+    resumed = reconstructed.resolve_approval(
+        waiting.pending_approval_id,
+        decision="approve",
+        reviewer="admin",
+        reason="command reviewed",
+    )
+
+    assert resumed.status == "succeeded"
+    try:
+        reconstructed.resolve_approval(
+            waiting.pending_approval_id,
+            decision="approve",
+            reviewer="admin",
+            reason="duplicate",
+        )
+    except ValueError as exc:
+        assert "pending" in str(exc)
+    else:
+        raise AssertionError("approval must execute exactly once")

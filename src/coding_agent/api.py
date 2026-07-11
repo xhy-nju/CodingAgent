@@ -4,6 +4,7 @@ import json
 import os
 import shutil
 import tempfile
+import time
 from pathlib import Path
 from typing import Any, Literal
 
@@ -26,6 +27,21 @@ from coding_agent.redaction import redact_value
 from coding_agent.run_service import RealRunUnavailable, RunService
 from coding_agent.store import SqliteStore
 from coding_agent.tools.dispatcher import build_default_dispatcher
+
+
+PUBLIC_EVENT_TYPES = {
+    "run.created": "run.created",
+    "run.started": "run.started",
+    "llm.output": "llm.action",
+    "guardrail.checked": "guardrail.checked",
+    "approval.requested": "approval.requested",
+    "approval.approved": "approval.approved",
+    "approval.rejected": "approval.rejected",
+    "tool.result": "tool.result",
+    "memory.written": "memory.written",
+    "feedback.recorded": "feedback.recorded",
+    "run.finished": "run.finished",
+}
 
 
 class DemoRequest(BaseModel):
@@ -214,14 +230,49 @@ def create_app(
         return runs.get_summary(run_id).model_dump(mode="json")
 
     @app.get("/api/runs/{run_id}/events")
-    def run_events(run_id: str) -> StreamingResponse:
+    def run_events(run_id: str, request: Request, after: int = 0) -> StreamingResponse:
         snapshot = current_snapshot()
-        events = store(snapshot).list_events(run_id)
+        events_store = store(snapshot)
+        try:
+            run = events_store.get_run(run_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="run not found") from exc
+        if run["llm_mode"] == "real":
+            require_admin(request)
+        last_event_id = request.headers.get("last-event-id")
+        if last_event_id:
+            try:
+                after = max(after, int(last_event_id))
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail="invalid event cursor") from exc
 
         def stream() -> Any:
-            for event in events:
-                yield f"event: {event['event_type']}\n"
-                yield f"data: {json.dumps(public(event['payload'], snapshot), ensure_ascii=False)}\n\n"
+            cursor = after
+            last_heartbeat = time.monotonic()
+            while True:
+                events = events_store.list_events_after(run_id, cursor, limit=100)
+                for event in events:
+                    cursor = int(event["sequence"])
+                    event_type = PUBLIC_EVENT_TYPES.get(
+                        str(event["event_type"]), "audit.event"
+                    )
+                    yield f"id: {cursor}\n"
+                    yield f"event: {event_type}\n"
+                    yield (
+                        "data: "
+                        f"{json.dumps(public(event['payload'], snapshot), ensure_ascii=False)}\n\n"
+                    )
+                current = events_store.get_run(run_id)
+                if current["status"] in {
+                    RunStatus.SUCCEEDED.value,
+                    RunStatus.FAILED.value,
+                    RunStatus.CANCELLED.value,
+                } and not events:
+                    break
+                if time.monotonic() - last_heartbeat >= 15:
+                    yield ": keep-alive\n\n"
+                    last_heartbeat = time.monotonic()
+                time.sleep(0.25)
 
         return StreamingResponse(stream(), media_type="text/event-stream")
 
@@ -278,25 +329,20 @@ def create_app(
         require_admin(request)
         require_same_origin(request)
         snapshot = current_snapshot()
-        approvals = ApprovalService(store(snapshot))
         try:
-            approval = approvals.get(approval_id)
-        except KeyError as exc:
-            raise HTTPException(status_code=404, detail="approval not found") from exc
-        loop = app.state.pending_loops.get(approval.run_id)
-        if loop is None:
-            raise HTTPException(status_code=409, detail="approval run is not active")
-        try:
-            summary = loop.resolve_approval(
+            summary = runs.resolve_approval(
                 approval_id,
                 decision=decision.decision,
                 reviewer=decision.reviewer,
                 reason=decision.reason,
             )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="approval not found") from exc
         except ValueError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
-        if summary.status != RunStatus.WAITING_APPROVAL.value:
-            app.state.pending_loops.pop(approval.run_id, None)
+        except RealRunUnavailable as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        approvals = ApprovalService(store(snapshot))
         return public(
             {
                 "approval_id": approval_id,

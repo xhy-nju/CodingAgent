@@ -15,7 +15,7 @@ from coding_agent.credentials import CredentialService, CredentialSnapshot
 from coding_agent.domain import ApprovalState, FeedbackSignal
 from coding_agent.events import EventBus
 from coding_agent.guardrails import GuardrailEngine
-from coding_agent.llm import LLMProvider, RealLLMProvider
+from coding_agent.llm import LLMProvider, MockLLMProvider, RealLLMProvider
 from coding_agent.memory import MemoryService
 from coding_agent.policies import load_policy
 from coding_agent.redaction import redact_value
@@ -64,6 +64,7 @@ class RunService:
             workspace,
             self.real_provider_factory(snapshot),
             snapshot,
+            llm_mode="real",
         )
         run_id = loop.start_run(normalized_task)
         if background:
@@ -102,6 +103,43 @@ class RunService:
             pending_approval_id=pending,
         )
 
+    def resolve_approval(
+        self,
+        approval_id: str,
+        *,
+        decision: str,
+        reviewer: str,
+        reason: str,
+    ) -> RunSummary:
+        snapshot = self.credential_resolver()
+        store = self.store_for(snapshot)
+        approval = ApprovalService(store).get(approval_id)
+        run = store.get_run(approval.run_id)
+        llm_mode = str(run["llm_mode"])
+        if llm_mode == "real":
+            if not snapshot.real_enabled or not snapshot.configured:
+                raise RealRunUnavailable("real LLM is not ready")
+            provider = self.real_provider_factory(snapshot)
+        else:
+            script_name = (
+                "dangerous_action"
+                if "dangerous-action" in str(run["task"])
+                else "bugfix_with_feedback"
+            )
+            provider = MockLLMProvider(script_name)
+        loop = self._build_loop(
+            Path(str(run["workspace"])),
+            provider,
+            snapshot,
+            llm_mode=llm_mode,
+        )
+        return loop.resolve_approval(
+            approval_id,
+            decision=decision,
+            reviewer=reviewer,
+            reason=reason,
+        )
+
     def _copy_sample_workspace(self) -> Path:
         run_root = self.data_dir / "run-workspaces" / f"real-{uuid.uuid4().hex[:12]}"
         workspace = run_root / "workspace"
@@ -114,6 +152,8 @@ class RunService:
         workspace: Path,
         provider: LLMProvider,
         snapshot: CredentialSnapshot,
+        *,
+        llm_mode: str,
     ) -> AgentLoop:
         store = self.store_for(snapshot)
         policy = load_policy("strict_demo", Path("config/policies"))
@@ -132,7 +172,7 @@ class RunService:
             llm=provider,
             workspace=workspace,
             policy_profile="strict_demo",
-            llm_mode="real",
+            llm_mode=llm_mode,
             max_steps=8,
         )
 
