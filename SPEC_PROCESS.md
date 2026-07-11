@@ -193,3 +193,89 @@
 - 修订 4：在冷启动提示词中将范围限制改为“不要修改 Task 4 依赖链之外的文件”。
 - 修订 5：新增 `docs/cold-start/2026-07-07-opencode-validation-result.md`，记录完整验证结论和处置决定。
 - 当前结论：冷启动验证已产生有效反馈并完成文档修订。opencode 生成的实现文件不进入正式提交；下一阶段应从 Task 1 按 TDD 顺序正式实现。
+
+## 阶段 4：正式实现与任务提交记录
+
+- 日期：2026-07-07 至 2026-07-08。
+- 使用技能：`superpowers:executing-plans`、`superpowers:test-driven-development`、`superpowers:systematic-debugging`、`superpowers:verification-before-completion`。
+- 执行方式：在 linked worktree `D:\Projects\CodingAgent\.worktrees\task1-domain-models` 上按 `PLAN.md` Task 1-15 顺序实现，每个主要任务以测试或可验证命令收尾，并形成独立提交。
+- 关键提交：
+  - `4c510f9 feat: add core domain models`
+  - `325156f feat: add policies and action parser`
+  - `5332a36 feat: add sqlite audit store`
+  - `3d1a07e feat: add deterministic guardrails and approvals`
+  - `3501b46 feat: add guarded file tools`
+  - `7c76f1a feat: parse objective feedback signals`
+  - `6e53ec2 feat: add command tools and sample workspace`
+  - `cc65025 feat: add deterministic memory service`
+  - `ac5137c feat: add mock-driven agent loop`
+  - `3a2de65 feat: add mock demo cli`
+  - `b829da6 feat: expose harness api and sse`
+  - `7132695 feat: scaffold frontend api client`
+  - `3af238d feat: add operational frontend dashboard`
+  - `b220983 fix: keep api demo workspaces in runtime dir`
+  - `47aee7c feat: gate optional real llm credentials`
+  - `392672d chore: add docker ci and deployment docs`
+- 人工确认点：人类所有者在 WebUI 可访问、demo 按钮不再返回 500 后确认“均正常”，随后进入 Task 15 和 Task 16。
+
+## 阶段 4：最终验证证据
+
+- 日期：2026-07-08。
+- 工作区：`D:\Projects\CodingAgent\.worktrees\task1-domain-models`。
+- 后端测试命令：`pytest -q`。
+- 观察结果：退出码 0，`45 passed in 17.08s`。
+- 前端测试命令：`cd frontend && npm run test -- run`。
+- 观察结果：退出码 0，`Test Files 2 passed (2)`，`Tests 5 passed (5)`。
+- 前端构建命令：`cd frontend && npm run build`。
+- 观察结果：退出码 0，Vite 构建成功，生成 `dist/index.html` 与 assets。
+- mock bugfix demo 命令：`$env:PYTHONPATH='src'; D:\Anaconda\python.exe -m coding_agent demo bugfix`。
+- 观察结果：退出码 0，输出 `status: succeeded`，run id 为 `run-86a9f8114175`，反馈包含 `test_passed`。
+- guardrail demo 命令：`$env:PYTHONPATH='src'; D:\Anaconda\python.exe -m coding_agent demo dangerous-action`。
+- 观察结果：退出码 1，输出 `status: failed`，反馈包含 `guardrail_blocked`，规则为 `path.outside_workspace`。该失败是预期的治理拦截结果，不是系统错误。
+- Docker 构建命令：`docker compose build`。
+- 观察结果：退出码 0，输出 `coding-agent  Built`，镜像名为 `task1-domain-models-coding-agent`。
+- WebUI URL 验证：`http://127.0.0.1:5174/`。
+- 观察结果：HTTP 200。
+- WebUI API 代理验证：`http://127.0.0.1:5174/api/credentials/status`。
+- 观察结果：HTTP 200，返回 `provider=openai-compatible`、`configured=false`、`source=missing`、`base_url=https://njusehub.info/v1`、`model=glm-5.2`、`real_enabled=false`。
+- 敏感信息检查：真实 `OPENAI_API_KEY` 未写入仓库；`.env`、本地数据、日志、数据库和运行导出由 `.gitignore` 与 `.dockerignore` 排除。
+
+## 阶段 5：工程交付补全
+
+- 日期：2026-07-11。
+- 设计规范：`docs/superpowers/specs/2026-07-11-engineering-delivery-design.md`，提交 `3381340`。
+- 实施计划：`docs/superpowers/plans/2026-07-11-engineering-delivery-implementation.md`，提交 `f472b9b`。
+- 人工决策：公开部署采用“匿名 Mock、管理员登录后使用 Real/审批/Memory”的访问边界。
+- 实现结果：
+  - 凭据支持 Docker Secret、环境变量和 Keyring，提供隐藏设置、状态、更新、清除命令。
+  - 管理员会话采用 HMAC 签名及 HttpOnly、SameSite Cookie。
+  - 真实模型通过与 Mock 相同的 AgentLoop、Action、Guardrail、工具、反馈、Memory、HITL 和审计链路。
+  - SSE 支持事件序号与断线续读；待审批运行可在进程重启后重建上下文。
+  - WebUI 支持 Mock/Real、登录、真实任务、审批、Memory 搜索与实时状态。
+  - 生产分发增加 Docker Secret、健康检查、Nginx HTTPS、GHCR 和敏感信息扫描。
+- 关键提交：`e57a2f9..b078521`、`9a542b4`、`5473d04`、`35111d0`、`0c2b9d7`、`79361b5`、`90a00ff`。
+- 过程调整：早期凭据任务使用多轮独立审查，定位了审批字段、Keyring 可用性和提示词脱敏缺口。人类所有者随后要求提高效率，后续任务改为直接实现、集中测试、仅在失败时修正。
+
+## 阶段 5：最终验收证据
+
+- 后端：`pytest -q`，退出码 0，`139 passed in 27.95s`。
+- 前端：`npm run test`，退出码 0，`2` 个测试文件、`10` 项测试通过。
+- 前端构建：`npm run build`，退出码 0，Vite 成功生成生产 assets。
+- Compose：`docker compose config --quiet`，退出码 0。
+- Docker：`docker compose build`，退出码 0，镜像 `task1-domain-models-coding-agent` 构建成功。
+- 容器：`docker compose ps` 显示 `healthy`；`http://127.0.0.1:8000/api/health` 与 WebUI 均返回 HTTP 200。
+- Mock bugfix：状态 `succeeded`，反馈为 `test_passed`，2 项示例测试通过。
+- Mock guardrail：状态 `failed`，反馈为 `guardrail_blocked`，规则 `path.outside_workspace`；退出码 1 是预期治理结果。
+- 真实模型：容器内凭据状态为 `configured=true`、`real_enabled=true`；`llm probe` 返回 `ok=true`、`model=glm-5.2`、`protocol_valid=true`、`action_kind=final`，延迟 3793 ms。
+- 浏览器：Mock 一键运行进入 `succeeded`，SSE 时间线完整，管理员登录对话框可访问，浏览器控制台无错误。
+- 响应式验收限制：前端测试和 CSS 包含 720/760 px 移动断点，生产构建通过；in-app 浏览器的临时 viewport override 未改变其固定 1280×720 视口，因此最终阿里云部署后仍需用真实手机或 DevTools 补一张移动端截图作为外部证据。
+
+## 阶段 5：提交文档与实现对齐
+
+- 日期：2026-07-11。
+- 人工决策：代码托管、Pull Request、CI 结果和镜像发布均以 GitHub 为准，不把 NJU GitLab 操作纳入当前交付流程。
+- 规约修订：新增“领域与机制设计”“技术选型与理由”，并把 WebUI 页面、SQLite 表、CLI 和机制演示描述收敛到当前真实实现。
+- 计划闭环：`PLAN.md` 的任务总表和详细执行步骤统一标记为已完成，提交哈希仍以顶部证据表为准。
+- README 补全：增加三项课程机制的演示入口、预期结果、主要第三方依赖及许可证，并明确 GitHub-only 交付路径。
+- 人类所有权：`REFLECTION.md` 只提供事实材料和填写结构，1500-2500 字最终反思仍由学生本人完成并披露 AI 辅助。
+- 外部证据边界：公开仓库、PR、GitHub Actions、GHCR、阿里云 URL 和视频必须在真实操作后记录，不使用占位链接冒充。

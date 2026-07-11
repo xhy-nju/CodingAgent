@@ -118,3 +118,99 @@
 - 处理结果：修订 `PLAN.md` 与 Superpowers plan 的 `strict_demo.allowed_tools`，修订 Task 4 的 provider-token 脱敏正则示例，为 Task 4 增加前置依赖和最小脱敏范围说明，修订冷启动提示词的范围边界，新增 `docs/cold-start/2026-07-07-opencode-validation-result.md`。
 - 取舍：不提交 opencode 生成的 `src/`、`tests/`、`config/` 和 `pyproject.toml`，因为这些文件是冷启动验证脚手架，且未按 Task 1/2/4 的正式 TDD 顺序完成。
 - 下一步：清理未跟踪验证脚手架，提交文档修订，然后从 Task 1 开始正式实现。
+
+## 2026-07-08 - 阶段 4 - 正式实现 Task 1-12
+
+- 任务：按 `PLAN.md` 从核心领域模型推进到 API/SSE 和前端 API client。
+- 使用技能：`superpowers:executing-plans`、`superpowers:test-driven-development`、`superpowers:verification-before-completion`。
+- 关键提交：
+  - `4c510f9 feat: add core domain models`
+  - `325156f feat: add policies and action parser`
+  - `5332a36 feat: add sqlite audit store`
+  - `3d1a07e feat: add deterministic guardrails and approvals`
+  - `3501b46 feat: add guarded file tools`
+  - `7c76f1a feat: parse objective feedback signals`
+  - `6e53ec2 feat: add command tools and sample workspace`
+  - `cc65025 feat: add deterministic memory service`
+  - `ac5137c feat: add mock-driven agent loop`
+  - `3a2de65 feat: add mock demo cli`
+  - `b829da6 feat: expose harness api and sse`
+  - `7132695 feat: scaffold frontend api client`
+- 人工干预：人类所有者多次确认继续下一部分；实现保持每个任务独立提交，避免一次性大爆炸。
+- 经验教训：TDD 红绿循环让 action parser、guardrail、approval、store、memory 和 CLI 的边界比较清晰；越靠近 Web/API，越需要同步人工演示需求和自动测试。
+
+## 2026-07-08 - 阶段 4 - WebUI Dashboard 与 500 排障
+
+- 任务：实现完整 WebUI Dashboard、Demo Center、Run Detail、Approvals、Memory、Policies、Credentials、Settings。
+- 关键提交：`3af238d feat: add operational frontend dashboard`。
+- 人工反馈：人类所有者在浏览器中遇到“无法访问此站点”和按钮 500。
+- 调试技能：`superpowers:systematic-debugging`。
+- 排障结论 1：`无法访问此站点` 的直接原因是 Vite dev server 未运行；后续启动并验证 `http://127.0.0.1:5174/` 返回 200。
+- 排障结论 2：按钮 500 的根因是 API demo workspace 使用系统 Temp 目录，Windows 当前运行上下文拒绝创建目录。
+- 修复提交：`b220983 fix: keep api demo workspaces in runtime dir`。
+- 验证：`tests/test_api.py` 新增 workspace 位置回归测试；真实 HTTP demo 请求不再返回 500。
+
+## 2026-07-08 - 阶段 4 - Task 14 真实 LLM Gate
+
+- 任务：实现凭据状态与可选真实 LLM provider。
+- 关键提交：`47aee7c feat: gate optional real llm credentials`。
+- 实现内容：新增 `CredentialService`、`RealLLMProvider`、API `/api/credentials/status` 完整状态、CLI `credentials status`，WebUI Credentials 页显示 `base_url` 与 `model`。
+- 安全边界：真实 provider token 只从环境变量读取；状态接口和 WebUI 不回显 key。
+- 验证：`pytest` 通过 41 个测试；前端测试和构建通过；`/api/credentials/status` 通过前端代理返回 HTTP 200。
+
+## 2026-07-08 - 阶段 4 - Task 15 Docker、CI 与部署文档
+
+- 任务：增加 Docker 分发、GitHub Actions、GitLab CI、阿里云 Ubuntu 部署说明。
+- 关键提交：`392672d chore: add docker ci and deployment docs`。
+- 实现内容：新增 `Dockerfile`、`docker-compose.yml`、`.dockerignore`、`.env.example`、`.github/workflows/ci.yml`、`.gitlab-ci.yml`，并将 README 重写为可读中文。
+- 额外接线：FastAPI 在 `frontend/dist` 存在时挂载静态 WebUI，使 Docker 镜像在 8000 端口同时提供 API 和前端。
+- 人工/环境干预：本地 Docker CLI 已安装但 Docker Desktop 未运行；由 Codex 启动 Docker Desktop 后完成 `docker compose build`。
+- 验证：`pytest -q` 45 passed；`npm run build` 通过；`docker compose build` 生成 `task1-domain-models-coding-agent` 镜像。
+
+## 2026-07-08 - 阶段 4 - Task 16 最终验证证据
+
+- 任务：运行最终验证命令并记录课程证据。
+- 验证命令与结果：
+  - `pytest -q`：退出码 0，45 passed。
+  - `cd frontend && npm run test -- run`：退出码 0，2 个测试文件、5 个测试通过。
+  - `cd frontend && npm run build`：退出码 0，Vite 构建成功。
+  - `$env:PYTHONPATH='src'; D:\Anaconda\python.exe -m coding_agent demo bugfix`：退出码 0，`status=succeeded`。
+  - `$env:PYTHONPATH='src'; D:\Anaconda\python.exe -m coding_agent demo dangerous-action`：退出码 1，包含 `guardrail_blocked`，这是预期拦截。
+  - `docker compose build`：退出码 0，`coding-agent Built`。
+  - `http://127.0.0.1:5174/`：HTTP 200。
+  - `http://127.0.0.1:5174/api/credentials/status`：HTTP 200。
+- 经验教训：最终证据文档应记录命令、退出码和观察结果，不应只写“已通过”；对预期 exit code 1 的护栏演示必须解释其语义。
+
+## 2026-07-10 - Real LLM Probe
+
+- Spec: `docs/superpowers/specs/2026-07-10-real-llm-probe-design.md`.
+- Added the TDD-built `python -m coding_agent llm probe` command.
+- The probe validates one strict `final` Action without constructing an Agent Loop or executing tools.
+- Automated verification: backend tests, frontend tests/build, and Docker build passed.
+- Mock verification: bugfix succeeded; dangerous-action was blocked as designed.
+- Sanitized real-provider verification: `ok=true`, `model=glm-5.2`, `protocol_valid=true`, `action_kind=final`.
+- Secret hygiene: no API key, Authorization header, or raw model response was added to Git.
+
+## 2026-07-11 - 完整工程交付
+
+- 人类所有者选择：匿名开放 Mock 演示，真实 LLM、审批和管理能力要求管理员登录。
+- Codex 使用 Superpowers 完成设计和实施计划，随后在 linked worktree 中实施。
+- 凭据任务先由子代理实现并独立审查；审查发现非环境变量密钥未贯穿脱敏、审批字段遗漏和提示词泄露路径，修复后全量测试达到 115 项。
+- 人类所有者要求减少重复复核后，Codex 直接完成管理员认证、运行恢复、真实 Agent、SSE/HITL、WebUI 和生产分发，每项仅在实现后集中运行测试并修正失败。
+- 提交：
+  - `e57a2f9..b078521`：安全凭据生命周期与全链路脱敏。
+  - `9a542b4`：管理员签名会话。
+  - `5473d04`：持久化运行生命周期与恢复。
+  - `35111d0`：真实模型驱动受治理 AgentLoop。
+  - `0c2b9d7`：实时 SSE 与持久化审批恢复。
+  - `79361b5`：完整 Mock/Real WebUI。
+  - `90a00ff`：生产 Compose、Nginx、CI 与 GHCR。
+- 未伪造的外部证据：公开镜像、PR/CI 链接和阿里云公网 URL 要在实际推送和部署成功后补写。
+- 最终本地验收：后端 139 项、前端 10 项通过，生产构建、Docker 构建和 Compose 配置成功；容器健康，Mock 演示和真实 `glm-5.2` 探针成功，浏览器控制台无错误。
+
+## 2026-07-11 - 提交文档收敛
+
+- 人类所有者明确选择 GitHub 作为唯一仓库、PR、CI 和镜像发布平台，当前不执行 NJU GitLab 相关操作。
+- Codex 对照课程要求和代码现状修订 `SPEC.md`、`PLAN.md`、`README.md`、`REFLECTION.md` 与过程记录。
+- 修订重点：消除尚未实现的 WebUI/CLI 承诺，补齐领域机制、技术选型、三项可复现演示和第三方许可证。
+- 学术边界：Codex 未代写最终个人反思，只整理可核验事实、建议结构与 AI 使用披露模板。

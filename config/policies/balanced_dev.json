@@ -1,0 +1,10 @@
+{
+  "name": "balanced_dev",
+  "allowed_tools": ["list_files", "read_file", "write_file", "run_tests", "run_lint", "run_command", "memory_search", "memory_write"],
+  "allowed_command_prefixes": [["python", "-m", "pytest"], ["pytest"], ["python", "-m", "ruff"], ["ruff", "check"]],
+  "denied_command_fragments": ["blocked-delete --recursive", "blocked-remove-item --recursive", "format", "ssh", "scp", "kubectl delete", "docker push"],
+  "protected_path_fragments": [".env", "id_rsa", "id_ed25519", ".ssh", ".aws", ".git", "credentials"],
+  "max_file_bytes": 50000,
+  "tool_timeout_seconds": 60,
+  "require_approval_tools": []
+}
