@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from keyring.errors import PasswordDeleteError
+from keyring.errors import KeyringError, PasswordDeleteError
 
 from coding_agent.credentials import CredentialService, CredentialSnapshot
 from coding_agent.llm import LLMContext, RealLLMProvider
@@ -23,6 +23,17 @@ class FakeKeyring:
         if self.token is None:
             raise PasswordDeleteError("credential not found")
         self.token = None
+
+
+class UnavailableKeyring:
+    def get_password(self, service: str, username: str) -> str | None:
+        raise KeyringError("keyring is unavailable")
+
+    def set_password(self, service: str, username: str, token: str) -> None:
+        raise AssertionError("set_password is not used by this test")
+
+    def delete_password(self, service: str, username: str) -> None:
+        raise AssertionError("delete_password is not used by this test")
 
 
 def test_credential_priority_prefers_secret_file(tmp_path, monkeypatch) -> None:
@@ -53,6 +64,17 @@ def test_credential_service_treats_blank_keyring_token_as_missing(monkeypatch) -
     monkeypatch.delenv("OPENAI_API_KEY_FILE", raising=False)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     service = CredentialService(keyring_backend=FakeKeyring("  "))
+
+    snapshot = service.resolve()
+
+    assert snapshot.provider_token is None
+    assert snapshot.source == "missing"
+
+
+def test_credential_service_treats_keyring_read_error_as_missing(monkeypatch) -> None:
+    monkeypatch.delenv("OPENAI_API_KEY_FILE", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    service = CredentialService(keyring_backend=UnavailableKeyring())
 
     snapshot = service.resolve()
 

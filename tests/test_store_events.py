@@ -58,6 +58,17 @@ def test_memory_round_trip(tmp_path: Path) -> None:
     assert rows[0].content == "strict demo blocks recursive delete"
 
 
+def test_default_store_does_not_resolve_credentials(tmp_path: Path, monkeypatch) -> None:
+    def fail_if_resolved(self) -> object:
+        raise AssertionError("default store must not resolve credentials")
+
+    monkeypatch.setattr(CredentialService, "resolve", fail_if_resolved)
+
+    store = SqliteStore(tmp_path / "agent.db")
+
+    assert store.provider_token is None
+
+
 def test_events_have_monotonic_persisted_sequence(tmp_path: Path) -> None:
     store = SqliteStore(tmp_path / "agent.db")
     run_id = store.create_run("task", str(tmp_path), "strict_demo", "mock")
@@ -76,7 +87,9 @@ def test_structured_event_and_memory_values_are_redacted_at_persistence(
 ) -> None:
     exact_token = "exact-provider-token-for-redaction-test"
     monkeypatch.setenv("OPENAI_API_KEY", exact_token)
-    store = SqliteStore(tmp_path / "agent.db")
+    store = SqliteStore(
+        tmp_path / "agent.db", credential_snapshot=CredentialService().resolve()
+    )
     run_id = store.create_run("task", str(tmp_path), "strict_demo", "mock")
 
     store.append_event(
@@ -109,7 +122,9 @@ def test_docker_secret_token_is_redacted_before_event_persistence(tmp_path: Path
     secret.write_text(f"{token}\n", encoding="utf-8")
     monkeypatch.setenv("OPENAI_API_KEY_FILE", str(secret))
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    store = SqliteStore(tmp_path / "agent.db")
+    store = SqliteStore(
+        tmp_path / "agent.db", credential_snapshot=CredentialService().resolve()
+    )
     run_id = store.create_run("task", str(tmp_path), "strict_demo", "mock")
 
     store.append_event(run_id, "llm.output", {"raw": f"provider returned {token}"})

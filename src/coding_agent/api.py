@@ -135,7 +135,7 @@ def create_app(
     @app.get("/api/credentials/status")
     def credential_status() -> dict[str, object]:
         snapshot = current_snapshot()
-        return public(credentials.status(), snapshot)
+        return public(credentials.status(snapshot=snapshot), snapshot)
 
     @app.get("/api/memory")
     def memory_records(

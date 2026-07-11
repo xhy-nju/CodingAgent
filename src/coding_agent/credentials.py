@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Literal, Protocol
 
 import keyring
-from keyring.errors import PasswordDeleteError
+from keyring.errors import KeyringError, PasswordDeleteError
 
 
 class KeyringBackend(Protocol):
@@ -53,7 +53,10 @@ class CredentialService:
         token = os.environ.get("OPENAI_API_KEY", "").strip()
         if token:
             return self._snapshot(token, "environment")
-        token = self.keyring_backend.get_password(self.SERVICE_NAME, self.USERNAME)
+        try:
+            token = self.keyring_backend.get_password(self.SERVICE_NAME, self.USERNAME)
+        except KeyringError:
+            return self._snapshot(None, "missing")
         normalized = (token.strip() or None) if token else None
         return self._snapshot(normalized, "keyring" if normalized else "missing")
 
@@ -70,8 +73,8 @@ class CredentialService:
             return False
         return True
 
-    def status(self) -> dict[str, object]:
-        snapshot = self.resolve()
+    def status(self, snapshot: CredentialSnapshot | None = None) -> dict[str, object]:
+        snapshot = snapshot or self.resolve()
         return {
             "provider": "openai-compatible",
             "configured": snapshot.configured,

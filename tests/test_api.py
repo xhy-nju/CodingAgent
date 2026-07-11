@@ -4,7 +4,7 @@ from keyring.errors import PasswordDeleteError
 from starlette.testclient import TestClient
 
 from coding_agent.api import create_app
-from coding_agent.credentials import CredentialService
+from coding_agent.credentials import CredentialService, CredentialSnapshot
 from coding_agent.memory import MemoryService
 from coding_agent.store import SqliteStore
 
@@ -90,6 +90,43 @@ def test_credential_status_reflects_environment(tmp_path: Path, monkeypatch) -> 
         "model": "demo-model",
         "real_enabled": True,
     }
+
+
+def test_credential_status_resolves_once(tmp_path: Path) -> None:
+    snapshot = CredentialSnapshot(
+        provider_token="status-token",
+        source="keyring",
+        base_url="https://example.test/v1",
+        model="demo-model",
+        real_enabled=True,
+    )
+
+    class CountingCredentials:
+        def __init__(self) -> None:
+            self.resolve_calls = 0
+
+        def resolve(self) -> CredentialSnapshot:
+            self.resolve_calls += 1
+            return snapshot
+
+        def status(self, snapshot: CredentialSnapshot | None = None) -> dict[str, object]:
+            snapshot = snapshot or self.resolve()
+            return {
+                "provider": "openai-compatible",
+                "configured": snapshot.configured,
+                "source": snapshot.source,
+                "base_url": snapshot.base_url,
+                "model": snapshot.model,
+                "real_enabled": snapshot.real_enabled,
+            }
+
+    credentials = CountingCredentials()
+    client = TestClient(create_app(data_dir=tmp_path, credential_service=credentials))
+
+    response = client.get("/api/credentials/status")
+
+    assert response.status_code == 200
+    assert credentials.resolve_calls == 1
 
 
 def test_approval_decision_endpoint_records_state(tmp_path: Path) -> None:

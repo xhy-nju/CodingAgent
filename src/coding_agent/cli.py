@@ -37,7 +37,8 @@ def _copy_sample_workspace() -> Path:
 
 
 def _build_loop(workspace: Path, db_path: Path, script_name: str) -> AgentLoop:
-    store = SqliteStore(db_path)
+    snapshot = CredentialService().resolve()
+    store = SqliteStore(db_path, credential_snapshot=snapshot)
     policy = load_policy("strict_demo", Path("config/policies"))
     memory = MemoryService(store)
     dispatcher = build_default_dispatcher(

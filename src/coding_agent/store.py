@@ -6,7 +6,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from coding_agent.credentials import CredentialService, CredentialSnapshot
+from coding_agent.credentials import CredentialSnapshot
 from coding_agent.domain import ApprovalRequest, ApprovalState, MemoryRecord, RunStatus, ToolResult
 from coding_agent.redaction import redact_value
 
@@ -16,8 +16,7 @@ class SqliteStore:
         self, db_path: Path, credential_snapshot: CredentialSnapshot | None = None
     ) -> None:
         self.db_path = db_path
-        snapshot = credential_snapshot or CredentialService().resolve()
-        self.provider_token = snapshot.provider_token
+        self.provider_token = credential_snapshot.provider_token if credential_snapshot else None
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_schema()
 
@@ -106,7 +105,14 @@ class SqliteStore:
                     "insert into runs(id, task, workspace, policy_profile, llm_mode, status) "
                     "values (?, ?, ?, ?, ?, ?)"
                 ),
-                (run_id, task, workspace, policy_profile, llm_mode, RunStatus.CREATED.value),
+                (
+                    run_id,
+                    self._redact(task),
+                    self._redact(workspace),
+                    self._redact(policy_profile),
+                    self._redact(llm_mode),
+                    RunStatus.CREATED.value,
+                ),
             )
         return run_id
 
@@ -132,15 +138,12 @@ class SqliteStore:
                     request.id,
                     request.run_id,
                     request.action_id,
-                    request.action.model_dump_json(),
+                    self._json(request.action.model_dump(mode="json")),
                     request.state.value,
-                    json.dumps(request.rules, ensure_ascii=False),
-                    request.reason,
+                    self._json(request.rules),
+                    self._redact(request.reason),
                     request.step_index,
-                    json.dumps(
-                        [item.model_dump(mode="json") for item in request.feedback],
-                        ensure_ascii=False,
-                    ),
+                    self._json([item.model_dump(mode="json") for item in request.feedback]),
                 ),
             )
 
@@ -175,7 +178,13 @@ class SqliteStore:
                     "update approvals set state = ?, reviewer = ?, reviewer_reason = ?, "
                     "decided_at = current_timestamp where id = ? and state = ?"
                 ),
-                (state.value, reviewer, reason, approval_id, ApprovalState.PENDING.value),
+                (
+                    state.value,
+                    self._redact(reviewer),
+                    self._redact(reason),
+                    approval_id,
+                    ApprovalState.PENDING.value,
+                ),
             )
             if cursor.rowcount != 1:
                 exists = conn.execute(
@@ -197,7 +206,11 @@ class SqliteStore:
                     "update approvals set execution_result_json = ?, executed_at = current_timestamp "
                     "where id = ? and state = ? and execution_result_json is null"
                 ),
-                (result.model_dump_json(), approval_id, ApprovalState.APPROVED_ONCE.value),
+                (
+                    self._json(result.model_dump(mode="json")),
+                    approval_id,
+                    ApprovalState.APPROVED_ONCE.value,
+                ),
             )
             if cursor.rowcount != 1:
                 raise ValueError("approved action has already been executed or is not approved")
@@ -227,15 +240,14 @@ class SqliteStore:
         )
 
     def append_event(self, run_id: str, event_type: str, payload: dict[str, Any]) -> None:
-        redacted, _ = redact_value(payload, self.provider_token)
         with self._connect() as conn:
             conn.execute(
                 "insert into events(id, run_id, event_type, payload_json) values (?, ?, ?, ?)",
                 (
                     f"event-{uuid.uuid4().hex[:12]}",
                     run_id,
-                    event_type,
-                    json.dumps(redacted, ensure_ascii=False),
+                    self._redact(event_type),
+                    self._json(payload),
                 ),
             )
 
@@ -253,9 +265,7 @@ class SqliteStore:
                 "sequence": row["sequence"],
                 "id": row["id"],
                 "event_type": row["event_type"],
-                "payload": redact_value(
-                    json.loads(row["payload_json"]), self.provider_token
-                )[0],
+                "payload": self._redact(json.loads(row["payload_json"])),
                 "created_at": row["created_at"],
             }
             for row in rows
@@ -272,7 +282,6 @@ class SqliteStore:
         sensitive: bool,
     ) -> str:
         memory_id = f"mem-{uuid.uuid4().hex[:12]}"
-        redacted_content = redact_value(content, self.provider_token)[0]
         with self._connect() as conn:
             conn.execute(
                 (
@@ -282,11 +291,11 @@ class SqliteStore:
                 ),
                 (
                     memory_id,
-                    scope,
-                    kind,
-                    json.dumps(tags),
-                    redacted_content,
-                    source_run_id,
+                    self._redact(scope),
+                    self._redact(kind),
+                    self._json(tags),
+                    self._redact(content),
+                    self._redact(source_run_id),
                     confidence,
                     int(sensitive),
                 ),
@@ -321,7 +330,7 @@ class SqliteStore:
                         scope=row["scope"],
                         kind=row["kind"],
                         tags=row_tags,
-                        content=redact_value(row["content"], self.provider_token)[0],
+                        content=self._redact(row["content"]),
                         source_run_id=row["source_run_id"],
                         confidence=float(row["confidence"]),
                         sensitive=bool(row["sensitive"]),
@@ -330,3 +339,9 @@ class SqliteStore:
                 if limit is not None and len(result) >= limit:
                     break
         return result
+
+    def _redact(self, value: Any) -> Any:
+        return redact_value(value, self.provider_token)[0]
+
+    def _json(self, value: Any) -> str:
+        return json.dumps(self._redact(value), ensure_ascii=False)
