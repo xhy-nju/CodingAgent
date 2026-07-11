@@ -57,6 +57,40 @@ def test_denies_recursive_delete_fragment(tmp_path: Path) -> None:
     assert "command.denied_fragment" in decision.rules
 
 
+def test_denies_dangerous_command_when_model_returns_string(tmp_path: Path) -> None:
+    policy = load_policy("strict_demo", Path("config/policies"))
+    engine = GuardrailEngine(policy=policy, workspace=tmp_path)
+    action = Action(
+        kind=ActionKind.TOOL,
+        tool="run_command",
+        args={"command": "rm -rf ."},
+        reason="unsafe string command",
+        expectation="blocked",
+    )
+
+    decision = engine.evaluate(action)
+
+    assert decision.decision is GuardrailDecisionType.DENY
+    assert "command.denied_fragment" in decision.rules
+
+
+def test_string_command_is_normalized_before_prefix_check(tmp_path: Path) -> None:
+    policy = load_policy("strict_demo", Path("config/policies"))
+    engine = GuardrailEngine(policy=policy, workspace=tmp_path)
+    action = Action(
+        kind=ActionKind.TOOL,
+        tool="run_command",
+        args={"command": "pytest -q"},
+        reason="run tests",
+        expectation="approval required",
+    )
+
+    decision = engine.evaluate(action)
+
+    assert decision.decision is GuardrailDecisionType.NEEDS_APPROVAL
+    assert "tool.requires_approval" in decision.rules
+
+
 def test_redacts_provider_token_like_values() -> None:
     redacted, labels = redact_secrets("token=demo-redaction-value-123456")
 

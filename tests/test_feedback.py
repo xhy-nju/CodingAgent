@@ -34,3 +34,20 @@ def test_feedback_from_blocked_tool_result() -> None:
     feedback = feedback_from_tool_result(result)
 
     assert feedback[0].type is FeedbackType.GUARDRAIL_BLOCKED
+
+
+def test_successful_tool_result_becomes_model_observation() -> None:
+    result = ToolResult(
+        status="ok",
+        stdout_summary="calculator.py\ntest_calculator.py",
+        artifacts={"files": ["calculator.py", "test_calculator.py"]},
+    )
+
+    feedback = feedback_from_tool_result(result)
+
+    assert feedback[0].type is FeedbackType.TOOL_OBSERVATION
+    assert feedback[0].details["stdout"] == "calculator.py\ntest_calculator.py"
+    assert feedback[0].details["artifacts"]["files"] == [
+        "calculator.py",
+        "test_calculator.py",
+    ]

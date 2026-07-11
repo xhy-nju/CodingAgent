@@ -45,6 +45,20 @@ class RememberThenFinalProvider(LLMProvider):
         return '{"kind":"final","args":{},"reason":"done","expectation":"stop"}'
 
 
+class ListThenFinalProvider(LLMProvider):
+    def __init__(self) -> None:
+        self.contexts: list[LLMContext] = []
+
+    def next_action(self, context: LLMContext) -> str:
+        self.contexts.append(context)
+        if context.step_index == 0:
+            return (
+                '{"kind":"tool","tool":"list_files","args":{},'
+                '"reason":"inspect workspace","expectation":"file list"}'
+            )
+        return '{"kind":"final","args":{},"reason":"done","expectation":"stop"}'
+
+
 def _loop(tmp_path: Path, workspace: Path, script_name: str) -> AgentLoop:
     store = SqliteStore(tmp_path / "agent.db")
     policy = load_policy("strict_demo", Path("config/policies"))
@@ -116,6 +130,37 @@ def test_mock_loop_fixes_sample_after_feedback(tmp_path: Path) -> None:
 
     assert summary.status == "succeeded"
     assert "return a + b" in (workspace / "calculator.py").read_text(encoding="utf-8")
+
+
+def test_successful_tool_observation_is_injected_into_next_model_step(tmp_path: Path) -> None:
+    workspace = tmp_path / "observation-workspace"
+    workspace.mkdir()
+    (workspace / "calculator.py").write_text("def add(a, b): return a - b\n", encoding="utf-8")
+    store = SqliteStore(tmp_path / "observation.db")
+    policy = load_policy("strict_demo", Path("config/policies"))
+    memory = MemoryService(store)
+    provider = ListThenFinalProvider()
+    loop = AgentLoop(
+        store=store,
+        events=EventBus(store),
+        memory=memory,
+        dispatcher=build_default_dispatcher(
+            GuardrailEngine(policy, workspace), workspace, policy, memory=memory
+        ),
+        llm=provider,
+        workspace=workspace,
+        policy_profile="strict_demo",
+        llm_mode="real",
+        max_steps=3,
+    )
+
+    summary = loop.run("inspect calculator")
+
+    assert summary.status == "succeeded"
+    assert provider.contexts[1].feedback[0].type.value == "tool_observation"
+    assert provider.contexts[1].feedback[0].details["artifacts"]["files"] == [
+        "calculator.py"
+    ]
 
 
 def _approval_loop(tmp_path: Path) -> tuple[AgentLoop, SqliteStore, list[str]]:

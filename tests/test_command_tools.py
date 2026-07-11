@@ -8,6 +8,7 @@ import pytest
 from coding_agent.domain import Action, ActionKind, FeedbackType
 from coding_agent.guardrails import GuardrailEngine
 from coding_agent.policies import load_policy
+from coding_agent.tools.commands import normalize_command
 from coding_agent.tools.dispatcher import build_default_dispatcher
 
 
@@ -78,6 +79,15 @@ def _run_tests_action() -> Action:
         reason="run tests",
         expectation="structured result",
     )
+
+
+def test_normalize_command_accepts_model_string_without_using_a_shell() -> None:
+    assert normalize_command('python -m pytest "test calculator.py"') == [
+        "python",
+        "-m",
+        "pytest",
+        "test calculator.py",
+    ]
 
 
 def test_command_timeout_is_structured_timeout_result(tmp_path: Path, monkeypatch) -> None:

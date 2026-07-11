@@ -97,7 +97,16 @@ class RealLLMProvider(LLMProvider):
 Return exactly one JSON object and no Markdown or surrounding text.
 The object must have: kind, args, reason, expectation; tool actions also require tool.
 Allowed kinds: tool, remember, final, request_user.
-Allowed tools: read_file, write_file, run_tests, run_lint, run_command, memory_write.
+Allowed tools and exact args shapes:
+- list_files: {}
+- read_file: {"path":"calculator.py"}
+- write_file: {"path":"calculator.py","content":"complete replacement content"}
+- run_tests: {"target":"."}
+- run_command: {"command":["python","-m","pytest"]}
+- memory_search: {"query":"text","tags":[]}
+- memory_write: {"scope":"project","tags":[],"content":"lesson"}
+Prefer list_files, read_file, write_file, and run_tests over run_command. A run_command
+command must be a JSON array of argument strings and is restricted by policy.
 Use one action per response. Never access paths outside the provided workspace.
 Never include credentials or secrets. A final action must use an empty args object."""
 

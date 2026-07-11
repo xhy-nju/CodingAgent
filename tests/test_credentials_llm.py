@@ -219,6 +219,8 @@ def test_real_provider_posts_openai_compatible_request(monkeypatch) -> None:
     assert "Return exactly one JSON object" in system_message
     assert "run_tests" in system_message
     assert "write_file" in system_message
+    assert "list_files" in system_message
+    assert '"command":["python","-m","pytest"]' in system_message
     assert "Task: fix tests" in user_message
     assert "Step: 2/8" in user_message
     assert captured["json"]["max_tokens"] == 512
