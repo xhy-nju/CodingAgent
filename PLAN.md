@@ -145,7 +145,7 @@ Responsibilities:
 - Produces: `Action`, `ActionKind`, `GuardrailDecision`, `GuardrailDecisionType`, `FeedbackSignal`, `FeedbackType`, `ToolResult`, `RunStatus`, `ApprovalRequest`, `ApprovalState`, `MemoryRecord`.
 - Later tasks import these exact names from `coding_agent.domain`.
 
-- [ ] **Step 1: Write the failing domain tests**
+- [x] **Step 1: Write the failing domain tests**
 
 Create `tests/test_domain.py`:
 
@@ -218,13 +218,13 @@ def test_approval_request_starts_pending() -> None:
     assert approval.state is ApprovalState.PENDING
 ```
 
-- [ ] **Step 2: Run the domain tests and verify red**
+- [x] **Step 2: Run the domain tests and verify red**
 
 Run: `pytest tests/test_domain.py -v`
 
 Expected: FAIL with `ModuleNotFoundError: No module named 'coding_agent'` or import errors for missing models.
 
-- [ ] **Step 3: Add packaging and domain models**
+- [x] **Step 3: Add packaging and domain models**
 
 Create `pyproject.toml`:
 
@@ -399,13 +399,13 @@ class MemoryRecord(BaseModel):
     sensitive: bool = False
 ```
 
-- [ ] **Step 4: Run the domain tests and verify green**
+- [x] **Step 4: Run the domain tests and verify green**
 
 Run: `pytest tests/test_domain.py -v`
 
 Expected: PASS with `4 passed`.
 
-- [ ] **Step 5: Commit Task 1**
+- [x] **Step 5: Commit Task 1**
 
 Run:
 
@@ -427,7 +427,7 @@ git commit -m "feat: add core domain models"
 - Consumes: `Action`, `FeedbackSignal`, `FeedbackType` from `coding_agent.domain`.
 - Produces: `PolicyProfile`, `load_policy(name: str, config_dir: Path) -> PolicyProfile`, `ParseResult`, `parse_action(raw: str) -> ParseResult`.
 
-- [ ] **Step 1: Write failing parser and policy tests**
+- [x] **Step 1: Write failing parser and policy tests**
 
 Create `tests/test_action_parser.py`:
 
@@ -478,13 +478,13 @@ def test_load_strict_policy() -> None:
     assert "rm" in policy.denied_command_fragments
 ```
 
-- [ ] **Step 2: Run parser tests and verify red**
+- [x] **Step 2: Run parser tests and verify red**
 
 Run: `pytest tests/test_action_parser.py -v`
 
 Expected: FAIL with import errors for `coding_agent.action_parser` and `coding_agent.policies`.
 
-- [ ] **Step 3: Create policy files**
+- [x] **Step 3: Create policy files**
 
 Create `config/policies/strict_demo.json`:
 
@@ -516,7 +516,7 @@ Create `config/policies/balanced_dev.json`:
 }
 ```
 
-- [ ] **Step 4: Implement policy loader and action parser**
+- [x] **Step 4: Implement policy loader and action parser**
 
 Create `src/coding_agent/policies.py`:
 
@@ -604,13 +604,13 @@ def parse_action(raw: str) -> ParseResult:
     return ParseResult(ok=True, raw=raw, action=action)
 ```
 
-- [ ] **Step 5: Run parser tests and verify green**
+- [x] **Step 5: Run parser tests and verify green**
 
 Run: `pytest tests/test_action_parser.py -v`
 
 Expected: PASS with `4 passed`.
 
-- [ ] **Step 6: Commit Task 2**
+- [x] **Step 6: Commit Task 2**
 
 Run:
 
@@ -630,7 +630,7 @@ git commit -m "feat: add policies and action parser"
 - Consumes: `RunStatus`, `FeedbackSignal`, `MemoryRecord`.
 - Produces: `SqliteStore(db_path: Path)`, `EventBus(store: SqliteStore)`, `create_run(task, workspace, policy_profile, llm_mode) -> str`, `append_event(run_id, event_type, payload) -> None`, `list_events(run_id) -> list[dict]`.
 
-- [ ] **Step 1: Write failing store tests**
+- [x] **Step 1: Write failing store tests**
 
 Create `tests/test_store_events.py`:
 
@@ -675,13 +675,13 @@ def test_memory_round_trip(tmp_path: Path) -> None:
     assert rows[0].content == "strict demo blocks recursive delete"
 ```
 
-- [ ] **Step 2: Run store tests and verify red**
+- [x] **Step 2: Run store tests and verify red**
 
 Run: `pytest tests/test_store_events.py -v`
 
 Expected: FAIL with import errors for `coding_agent.store` and `coding_agent.events`.
 
-- [ ] **Step 3: Implement SQLite store and event bus**
+- [x] **Step 3: Implement SQLite store and event bus**
 
 Create `src/coding_agent/store.py` with a minimal `sqlite3` implementation:
 
@@ -843,13 +843,13 @@ class EventBus:
         return self.store.list_events(run_id)
 ```
 
-- [ ] **Step 4: Run store tests and verify green**
+- [x] **Step 4: Run store tests and verify green**
 
 Run: `pytest tests/test_store_events.py -v`
 
 Expected: PASS with `2 passed`.
 
-- [ ] **Step 5: Commit Task 3**
+- [x] **Step 5: Commit Task 3**
 
 Run:
 
@@ -876,7 +876,7 @@ git commit -m "feat: add sqlite audit store"
 - A cold-start agent may create Task 1/2 dependency files only to make Task 4 runnable; those files are validation scaffolding unless formal implementation has reached those tasks in order.
 - Task 4 implements provider-token redaction as the minimal redaction slice. Broader HTTP header and generic credential redaction remains covered by later credential/API tasks.
 
-- [ ] **Step 1: Write failing guardrail and approval tests**
+- [x] **Step 1: Write failing guardrail and approval tests**
 
 Create `tests/test_guardrails.py`:
 
@@ -973,13 +973,13 @@ def test_approval_lifecycle_records_reviewer_reason() -> None:
     assert approved.reviewer_reason == "safe pytest command"
 ```
 
-- [ ] **Step 2: Run guardrail tests and verify red**
+- [x] **Step 2: Run guardrail tests and verify red**
 
 Run: `pytest tests/test_guardrails.py tests/test_approvals.py -v`
 
 Expected: FAIL with import errors for guardrails, redaction, and approvals modules.
 
-- [ ] **Step 3: Implement redaction, guardrails, and approvals**
+- [x] **Step 3: Implement redaction, guardrails, and approvals**
 
 Create `src/coding_agent/redaction.py`:
 
@@ -1131,13 +1131,13 @@ class ApprovalService:
         return updated
 ```
 
-- [ ] **Step 4: Run guardrail and approval tests and verify green**
+- [x] **Step 4: Run guardrail and approval tests and verify green**
 
 Run: `pytest tests/test_guardrails.py tests/test_approvals.py -v`
 
 Expected: PASS with `5 passed`.
 
-- [ ] **Step 5: Commit Task 4**
+- [x] **Step 5: Commit Task 4**
 
 Run:
 
@@ -1158,7 +1158,7 @@ git commit -m "feat: add deterministic guardrails and approvals"
 - Consumes: `Action`, `ToolResult`, `GuardrailEngine`.
 - Produces: `ToolSpec`, `ToolContext`, `ToolDispatcher.dispatch(action: Action) -> ToolResult`, file tools `list_files`, `read_file`, `write_file`.
 
-- [ ] **Step 1: Write failing file tool tests**
+- [x] **Step 1: Write failing file tool tests**
 
 Create `tests/test_tools.py`:
 
@@ -1233,13 +1233,13 @@ def test_dispatcher_blocks_outside_workspace(tmp_path: Path) -> None:
     assert result.feedback[0].type == "guardrail_blocked"
 ```
 
-- [ ] **Step 2: Run file tool tests and verify red**
+- [x] **Step 2: Run file tool tests and verify red**
 
 Run: `pytest tests/test_tools.py -v`
 
 Expected: FAIL with import errors for `coding_agent.tools.dispatcher`.
 
-- [ ] **Step 3: Implement base tool abstractions**
+- [x] **Step 3: Implement base tool abstractions**
 
 Create `src/coding_agent/tools/base.py`:
 
@@ -1271,7 +1271,7 @@ class ToolSpec(BaseModel):
     handler: Callable[[dict[str, Any], ToolContext], ToolResult]
 ```
 
-- [ ] **Step 4: Implement safe file tools**
+- [x] **Step 4: Implement safe file tools**
 
 Create `src/coding_agent/tools/files.py`:
 
@@ -1329,7 +1329,7 @@ def write_file(args: dict[str, object], context: ToolContext) -> ToolResult:
     return ToolResult(status="ok", artifacts={"path": relative, "diff_summary": diff_summary})
 ```
 
-- [ ] **Step 5: Implement dispatcher with guardrail feedback**
+- [x] **Step 5: Implement dispatcher with guardrail feedback**
 
 Create `src/coding_agent/tools/dispatcher.py`:
 
@@ -1398,13 +1398,13 @@ def build_default_dispatcher(
     return dispatcher
 ```
 
-- [ ] **Step 6: Run file tool tests and verify green**
+- [x] **Step 6: Run file tool tests and verify green**
 
 Run: `pytest tests/test_tools.py -v`
 
 Expected: PASS with `3 passed`.
 
-- [ ] **Step 7: Commit Task 5**
+- [x] **Step 7: Commit Task 5**
 
 Run:
 
@@ -1423,7 +1423,7 @@ git commit -m "feat: add guarded file tools"
 - Consumes: `ToolResult`, `FeedbackSignal`, `FeedbackType`.
 - Produces: `parse_pytest_output(exit_code: int, stdout: str, stderr: str) -> FeedbackSignal`, `feedback_from_tool_result(result: ToolResult) -> list[FeedbackSignal]`.
 
-- [ ] **Step 1: Write failing feedback tests**
+- [x] **Step 1: Write failing feedback tests**
 
 Create `tests/test_feedback.py`:
 
@@ -1466,13 +1466,13 @@ def test_feedback_from_blocked_tool_result() -> None:
     assert feedback[0].type is FeedbackType.GUARDRAIL_BLOCKED
 ```
 
-- [ ] **Step 2: Run feedback tests and verify red**
+- [x] **Step 2: Run feedback tests and verify red**
 
 Run: `pytest tests/test_feedback.py -v`
 
 Expected: FAIL with import error for `coding_agent.feedback`.
 
-- [ ] **Step 3: Implement feedback parser**
+- [x] **Step 3: Implement feedback parser**
 
 Create `src/coding_agent/feedback.py`:
 
@@ -1537,13 +1537,13 @@ def feedback_from_tool_result(result: ToolResult) -> list[FeedbackSignal]:
     return []
 ```
 
-- [ ] **Step 4: Run feedback tests and verify green**
+- [x] **Step 4: Run feedback tests and verify green**
 
 Run: `pytest tests/test_feedback.py -v`
 
 Expected: PASS with `3 passed`.
 
-- [ ] **Step 5: Commit Task 6**
+- [x] **Step 5: Commit Task 6**
 
 Run:
 
@@ -1565,7 +1565,7 @@ git commit -m "feat: parse objective feedback signals"
 - Consumes: `parse_pytest_output`, `ToolContext`, `ToolResult`.
 - Produces: `run_tests(args, context) -> ToolResult`, `run_command(args, context) -> ToolResult`.
 
-- [ ] **Step 1: Write failing command tool tests**
+- [x] **Step 1: Write failing command tool tests**
 
 Create `tests/test_command_tools.py`:
 
@@ -1605,13 +1605,13 @@ def test_sample_workspace_starts_with_failing_test() -> None:
     assert (workspace / "test_calculator.py").exists()
 ```
 
-- [ ] **Step 2: Run command tool tests and verify red**
+- [x] **Step 2: Run command tool tests and verify red**
 
 Run: `pytest tests/test_command_tools.py -v`
 
 Expected: FAIL because `run_tests` is not registered and sample workspace files do not exist.
 
-- [ ] **Step 3: Create sample workspace**
+- [x] **Step 3: Create sample workspace**
 
 Create `demos/sample_workspace/calculator.py`:
 
@@ -1634,7 +1634,7 @@ def test_add_negative_number() -> None:
     assert add(2, -3) == -1
 ```
 
-- [ ] **Step 4: Implement command tools and register them**
+- [x] **Step 4: Implement command tools and register them**
 
 Create `src/coding_agent/tools/commands.py`:
 
@@ -1704,13 +1704,13 @@ from coding_agent.tools.commands import run_command, run_tests
     dispatcher.register(ToolSpec(name="run_command", description="Run a guarded command", handler=run_command))
 ```
 
-- [ ] **Step 5: Run command tool tests and verify green**
+- [x] **Step 5: Run command tool tests and verify green**
 
 Run: `pytest tests/test_command_tools.py -v`
 
 Expected: PASS with `2 passed`.
 
-- [ ] **Step 6: Commit Task 7**
+- [x] **Step 6: Commit Task 7**
 
 Run:
 
@@ -1731,7 +1731,7 @@ git commit -m "feat: add command tools and sample workspace"
 - Consumes: `SqliteStore`, `MemoryRecord`, `ToolContext`.
 - Produces: `MemoryService.write_summary(...)`, `MemoryService.search(...)`, dispatcher tools `memory_search` and `memory_write`.
 
-- [ ] **Step 1: Write failing memory tests**
+- [x] **Step 1: Write failing memory tests**
 
 Create `tests/test_memory.py`:
 
@@ -1772,13 +1772,13 @@ def test_sensitive_memory_is_not_returned(tmp_path: Path) -> None:
     assert records == []
 ```
 
-- [ ] **Step 2: Run memory tests and verify red**
+- [x] **Step 2: Run memory tests and verify red**
 
 Run: `pytest tests/test_memory.py -v`
 
 Expected: FAIL with import error for `coding_agent.memory`.
 
-- [ ] **Step 3: Implement memory service**
+- [x] **Step 3: Implement memory service**
 
 Create `src/coding_agent/memory.py`:
 
@@ -1816,7 +1816,7 @@ class MemoryService:
         return self.store.search_memory(tags=tags, query=query)
 ```
 
-- [ ] **Step 4: Extend ToolContext and register memory tools**
+- [x] **Step 4: Extend ToolContext and register memory tools**
 
 Modify `src/coding_agent/tools/base.py` so `ToolContext` accepts an optional memory service:
 
@@ -1858,13 +1858,13 @@ def memory_write(args: dict[str, object], context: ToolContext) -> ToolResult:
 
 Update `build_default_dispatcher` signature to accept `memory: object | None = None`, pass it into `ToolContext`, and register `memory_search` and `memory_write`.
 
-- [ ] **Step 5: Run memory tests and full backend unit slice**
+- [x] **Step 5: Run memory tests and full backend unit slice**
 
 Run: `pytest tests/test_memory.py tests/test_tools.py -v`
 
 Expected: PASS for both files.
 
-- [ ] **Step 6: Commit Task 8**
+- [x] **Step 6: Commit Task 8**
 
 Run:
 
@@ -1884,7 +1884,7 @@ git commit -m "feat: add deterministic memory service"
 - Consumes: `parse_action`, `ToolDispatcher`, `MemoryService`, `SqliteStore`, `EventBus`.
 - Produces: `LLMProvider`, `MockLLMProvider`, `AgentLoop.run(task: str) -> RunSummary`, `RunSummary(run_id, status, feedback)`.
 
-- [ ] **Step 1: Write failing agent loop tests**
+- [x] **Step 1: Write failing agent loop tests**
 
 Create `tests/test_agent_loop.py`:
 
@@ -1947,13 +1947,13 @@ def test_mock_loop_fixes_sample_after_feedback(tmp_path: Path) -> None:
     assert "return a + b" in (workspace / "calculator.py").read_text(encoding="utf-8")
 ```
 
-- [ ] **Step 2: Run agent loop tests and verify red**
+- [x] **Step 2: Run agent loop tests and verify red**
 
 Run: `pytest tests/test_agent_loop.py -v`
 
 Expected: FAIL with import errors for `coding_agent.agent_loop` and `coding_agent.llm`.
 
-- [ ] **Step 3: Implement mock LLM provider**
+- [x] **Step 3: Implement mock LLM provider**
 
 Create `src/coding_agent/llm.py`:
 
@@ -2004,7 +2004,7 @@ class MockLLMProvider(LLMProvider):
         return json.dumps(payload)
 ```
 
-- [ ] **Step 4: Implement agent loop**
+- [x] **Step 4: Implement agent loop**
 
 Create `src/coding_agent/agent_loop.py`:
 
@@ -2102,13 +2102,13 @@ class AgentLoop:
         return RunSummary(run_id=run_id, status="failed", feedback=feedback)
 ```
 
-- [ ] **Step 5: Run agent loop tests and verify green**
+- [x] **Step 5: Run agent loop tests and verify green**
 
 Run: `pytest tests/test_agent_loop.py -v`
 
 Expected: PASS with `2 passed`.
 
-- [ ] **Step 6: Commit Task 9**
+- [x] **Step 6: Commit Task 9**
 
 Run:
 
@@ -2129,7 +2129,7 @@ git commit -m "feat: add mock-driven agent loop"
 - Consumes: `AgentLoop`, `MockLLMProvider`, `SqliteStore`, default dispatcher.
 - Produces: CLI commands `coding-agent demo dangerous-action`, `coding-agent demo bugfix`, `python -m coding_agent demo bugfix`.
 
-- [ ] **Step 1: Write failing CLI tests**
+- [x] **Step 1: Write failing CLI tests**
 
 Create `tests/test_cli.py`:
 
@@ -2157,13 +2157,13 @@ def test_demo_bugfix_outputs_succeeded_status() -> None:
     assert "succeeded" in result.stdout
 ```
 
-- [ ] **Step 2: Run CLI tests and verify red**
+- [x] **Step 2: Run CLI tests and verify red**
 
 Run: `pytest tests/test_cli.py -v`
 
 Expected: FAIL with import error for `coding_agent.cli`.
 
-- [ ] **Step 3: Implement CLI entry points**
+- [x] **Step 3: Implement CLI entry points**
 
 Create `src/coding_agent/cli.py`:
 
@@ -2255,13 +2255,13 @@ if __name__ == "__main__":
     raise SystemExit(main())
 ```
 
-- [ ] **Step 4: Run CLI tests and verify green**
+- [x] **Step 4: Run CLI tests and verify green**
 
 Run: `pytest tests/test_cli.py -v`
 
 Expected: PASS with `2 passed`.
 
-- [ ] **Step 5: Manually verify CLI commands**
+- [x] **Step 5: Manually verify CLI commands**
 
 Run: `python -m coding_agent demo bugfix`
 
@@ -2271,7 +2271,7 @@ Run: `python -m coding_agent demo dangerous-action`
 
 Expected: stdout contains `guardrail_blocked`, and exit code is 1.
 
-- [ ] **Step 6: Commit Task 10**
+- [x] **Step 6: Commit Task 10**
 
 Run:
 
@@ -2290,7 +2290,7 @@ git commit -m "feat: add mock demo cli"
 - Consumes: `SqliteStore`, `EventBus`, `AgentLoop` builder pieces.
 - Produces: `create_app(data_dir: Path | None = None) -> FastAPI`, routes `POST /api/runs/demo`, `GET /api/runs/{run_id}/events`, `GET /api/policies`, `GET /api/credentials/status`, `POST /api/approvals/{approval_id}/decision`.
 
-- [ ] **Step 1: Write failing API tests**
+- [x] **Step 1: Write failing API tests**
 
 Create `tests/test_api.py`:
 
@@ -2333,13 +2333,13 @@ def test_policy_endpoint_lists_profiles(tmp_path: Path) -> None:
     assert "strict_demo" in response.json()["profiles"]
 ```
 
-- [ ] **Step 2: Run API tests and verify red**
+- [x] **Step 2: Run API tests and verify red**
 
 Run: `pytest tests/test_api.py -v`
 
 Expected: FAIL with import error for `coding_agent.api`.
 
-- [ ] **Step 3: Implement FastAPI app**
+- [x] **Step 3: Implement FastAPI app**
 
 Create `src/coding_agent/api.py`:
 
@@ -2444,13 +2444,13 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 app = create_app()
 ```
 
-- [ ] **Step 4: Run API tests and verify green**
+- [x] **Step 4: Run API tests and verify green**
 
 Run: `pytest tests/test_api.py -v`
 
 Expected: PASS with `3 passed`.
 
-- [ ] **Step 5: Commit Task 11**
+- [x] **Step 5: Commit Task 11**
 
 Run:
 
@@ -2474,7 +2474,7 @@ git commit -m "feat: expose harness api and sse"
 - Consumes: FastAPI routes from Task 11.
 - Produces: `createDemoRun(name)`, `fetchPolicies()`, `fetchCredentialStatus()`, `openRunEventSource(runId)` and TypeScript types `RunSummary`, `PolicyList`, `CredentialStatus`.
 
-- [ ] **Step 1: Write failing API client tests**
+- [x] **Step 1: Write failing API client tests**
 
 Create `frontend/src/api.test.ts`:
 
@@ -2503,13 +2503,13 @@ describe("api client", () => {
 });
 ```
 
-- [ ] **Step 2: Run frontend tests and verify red**
+- [x] **Step 2: Run frontend tests and verify red**
 
 Run: `cd frontend && npm install && npm run test -- --run`
 
 Expected: FAIL because `package.json` and `src/api.ts` do not exist.
 
-- [ ] **Step 3: Add frontend package and Vite config**
+- [x] **Step 3: Add frontend package and Vite config**
 
 Create `frontend/package.json`:
 
@@ -2592,7 +2592,7 @@ Create `frontend/tsconfig.json`:
 }
 ```
 
-- [ ] **Step 4: Implement frontend types and API client**
+- [x] **Step 4: Implement frontend types and API client**
 
 Create `frontend/src/types.ts`:
 
@@ -2648,13 +2648,13 @@ export function openRunEventSource(runId: string): EventSource {
 }
 ```
 
-- [ ] **Step 5: Run frontend API tests and verify green**
+- [x] **Step 5: Run frontend API tests and verify green**
 
 Run: `cd frontend && npm run test -- --run src/api.test.ts`
 
 Expected: PASS with `2 passed`.
 
-- [ ] **Step 6: Commit Task 12**
+- [x] **Step 6: Commit Task 12**
 
 Run:
 
@@ -2675,7 +2675,7 @@ git commit -m "feat: scaffold frontend api client"
 - Consumes: `createDemoRun`, `fetchPolicies`, `fetchCredentialStatus`, `openRunEventSource`.
 - Produces: operational dashboard with Demo Center, Run Detail, Approval Queue placeholder driven by API data, Memory, Policies, Credentials, Settings tabs.
 
-- [ ] **Step 1: Write failing App tests**
+- [x] **Step 1: Write failing App tests**
 
 Create `frontend/src/App.test.tsx`:
 
@@ -2710,13 +2710,13 @@ describe("App", () => {
 });
 ```
 
-- [ ] **Step 2: Run App tests and verify red**
+- [x] **Step 2: Run App tests and verify red**
 
 Run: `cd frontend && npm run test -- --run src/App.test.tsx`
 
 Expected: FAIL because `App.tsx` and `main.tsx` do not exist.
 
-- [ ] **Step 3: Implement React entry and App**
+- [x] **Step 3: Implement React entry and App**
 
 Create `frontend/src/main.tsx`:
 
@@ -2830,7 +2830,7 @@ pre { overflow: auto; background: #101827; color: #eef2f7; padding: 14px; border
 @media (max-width: 760px) { .shell { grid-template-columns: 1fr; } .sidebar { position: static; } .panel-grid { grid-template-columns: 1fr; } }
 ```
 
-- [ ] **Step 4: Run App tests and frontend build**
+- [x] **Step 4: Run App tests and frontend build**
 
 Run: `cd frontend && npm run test -- --run src/App.test.tsx`
 
@@ -2840,7 +2840,7 @@ Run: `cd frontend && npm run build`
 
 Expected: PASS and creates `frontend/dist`.
 
-- [ ] **Step 5: Commit Task 13**
+- [x] **Step 5: Commit Task 13**
 
 Run:
 
@@ -2862,7 +2862,7 @@ git commit -m "feat: add operational web dashboard"
 - Consumes: environment variables `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL`, `ENABLE_REAL_LLM`.
 - Produces: `CredentialService.status()`, `RealLLMProvider.next_action(context)`, CLI `coding-agent credentials status`.
 
-- [ ] **Step 1: Write failing credential and real provider tests**
+- [x] **Step 1: Write failing credential and real provider tests**
 
 Create `tests/test_credentials_llm.py`:
 
@@ -2896,13 +2896,13 @@ def test_real_provider_refuses_when_disabled(monkeypatch) -> None:
         raise AssertionError("provider should refuse when disabled")
 ```
 
-- [ ] **Step 2: Run credential tests and verify red**
+- [x] **Step 2: Run credential tests and verify red**
 
 Run: `pytest tests/test_credentials_llm.py -v`
 
 Expected: FAIL with import error for `coding_agent.credentials` and `RealLLMProvider`.
 
-- [ ] **Step 3: Implement credential status service**
+- [x] **Step 3: Implement credential status service**
 
 Create `src/coding_agent/credentials.py`:
 
@@ -2940,7 +2940,7 @@ class CredentialService:
         }
 ```
 
-- [ ] **Step 4: Implement real LLM provider gate**
+- [x] **Step 4: Implement real LLM provider gate**
 
 Add to `src/coding_agent/llm.py`:
 
@@ -2988,7 +2988,7 @@ class RealLLMProvider(LLMProvider):
         return str(payload["choices"][0]["message"]["content"])
 ```
 
-- [ ] **Step 5: Wire credential status into API and CLI**
+- [x] **Step 5: Wire credential status into API and CLI**
 
 Modify `/api/credentials/status` in `src/coding_agent/api.py` to use `CredentialService.from_env().status()`.
 
@@ -3003,13 +3003,13 @@ def credentials_status() -> None:
     typer.echo(json.dumps(CredentialService.from_env().status(), ensure_ascii=False, indent=2))
 ```
 
-- [ ] **Step 6: Run credential tests and verify green**
+- [x] **Step 6: Run credential tests and verify green**
 
 Run: `pytest tests/test_credentials_llm.py tests/test_api.py -v`
 
 Expected: PASS for both files.
 
-- [ ] **Step 7: Commit Task 14**
+- [x] **Step 7: Commit Task 14**
 
 Run:
 
@@ -3033,7 +3033,7 @@ git commit -m "feat: gate optional real llm credentials"
 **Interfaces:**
 - Produces: local Docker Compose service exposing WebUI/API on port 8000, GitLab `unit-test` job, GitHub Actions CI.
 
-- [ ] **Step 1: Write distribution files**
+- [x] **Step 1: Write distribution files**
 
 Create `.gitignore`:
 
@@ -3110,7 +3110,7 @@ volumes:
   coding-agent-data:
 ```
 
-- [ ] **Step 2: Add CI files**
+- [x] **Step 2: Add CI files**
 
 Create `.gitlab-ci.yml`:
 
@@ -3165,7 +3165,7 @@ jobs:
       - run: docker build -t coding-agent:ci .
 ```
 
-- [ ] **Step 3: Update README deployment and demo sections**
+- [x] **Step 3: Update README deployment and demo sections**
 
 Modify `README.md` to include these commands exactly:
 
@@ -3179,7 +3179,7 @@ docker compose up --build
 
 Add Aliyun Ubuntu notes: open the chosen security group port, keep `.env` only on the server, set a non-default `ADMIN_PASSWORD`, leave `ENABLE_REAL_LLM=false` for public demos, and check logs with `docker compose logs -f coding-agent`.
 
-- [ ] **Step 4: Run distribution verification**
+- [x] **Step 4: Run distribution verification**
 
 Run: `pytest -q`
 
@@ -3193,7 +3193,7 @@ Run: `docker compose build`
 
 Expected: Docker image builds without copying `.env` or local databases.
 
-- [ ] **Step 5: Commit Task 15**
+- [x] **Step 5: Commit Task 15**
 
 Run:
 
@@ -3213,7 +3213,7 @@ git commit -m "chore: add docker ci and deployment docs"
 **Interfaces:**
 - Produces: final recorded evidence that mock demos, tests, Docker, CI, and WebUI URL were verified.
 
-- [ ] **Step 1: Run all final verification commands**
+- [x] **Step 1: Run all final verification commands**
 
 Run: `pytest -q`
 
@@ -3239,11 +3239,11 @@ Run: `docker compose build`
 
 Expected: image builds.
 
-- [ ] **Step 2: Record evidence in process documents**
+- [x] **Step 2: Record evidence in process documents**
 
 Update `SPEC_PROCESS.md` with exact command names, dates, and observed outcomes. Update `AGENT_LOG.md` with key commits and any human intervention. Update `REFLECTION.md` with implementation-stage observations without claiming final reflection is complete.
 
-- [ ] **Step 3: Commit final evidence docs**
+- [x] **Step 3: Commit final evidence docs**
 
 Run:
 

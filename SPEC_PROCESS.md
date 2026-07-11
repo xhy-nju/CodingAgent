@@ -269,3 +269,13 @@
 - 真实模型：容器内凭据状态为 `configured=true`、`real_enabled=true`；`llm probe` 返回 `ok=true`、`model=glm-5.2`、`protocol_valid=true`、`action_kind=final`，延迟 3793 ms。
 - 浏览器：Mock 一键运行进入 `succeeded`，SSE 时间线完整，管理员登录对话框可访问，浏览器控制台无错误。
 - 响应式验收限制：前端测试和 CSS 包含 720/760 px 移动断点，生产构建通过；in-app 浏览器的临时 viewport override 未改变其固定 1280×720 视口，因此最终阿里云部署后仍需用真实手机或 DevTools 补一张移动端截图作为外部证据。
+
+## 阶段 5：提交文档与实现对齐
+
+- 日期：2026-07-11。
+- 人工决策：代码托管、Pull Request、CI 结果和镜像发布均以 GitHub 为准，不把 NJU GitLab 操作纳入当前交付流程。
+- 规约修订：新增“领域与机制设计”“技术选型与理由”，并把 WebUI 页面、SQLite 表、CLI 和机制演示描述收敛到当前真实实现。
+- 计划闭环：`PLAN.md` 的任务总表和详细执行步骤统一标记为已完成，提交哈希仍以顶部证据表为准。
+- README 补全：增加三项课程机制的演示入口、预期结果、主要第三方依赖及许可证，并明确 GitHub-only 交付路径。
+- 人类所有权：`REFLECTION.md` 只提供事实材料和填写结构，1500-2500 字最终反思仍由学生本人完成并披露 AI 辅助。
+- 外部证据边界：公开仓库、PR、GitHub Actions、GHCR、阿里云 URL 和视频必须在真实操作后记录，不使用占位链接冒充。
