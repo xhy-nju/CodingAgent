@@ -31,3 +31,8 @@ class EventBus:
 
     def list_events(self, run_id: str) -> list[dict[str, Any]]:
         return self.store.list_events(run_id)
+
+    def list_events_after(
+        self, run_id: str, after_sequence: int = 0, limit: int | None = 100
+    ) -> list[dict[str, Any]]:
+        return self.store.list_events_after(run_id, after_sequence, limit)

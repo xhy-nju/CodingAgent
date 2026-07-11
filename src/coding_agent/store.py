@@ -117,8 +117,19 @@ class SqliteStore:
         return run_id
 
     def update_run_status(self, run_id: str, status: RunStatus) -> None:
+        terminal = status in {
+            RunStatus.SUCCEEDED,
+            RunStatus.FAILED,
+            RunStatus.CANCELLED,
+        }
         with self._connect() as conn:
-            conn.execute("update runs set status = ? where id = ?", (status.value, run_id))
+            conn.execute(
+                (
+                    "update runs set status = ?, finished_at = "
+                    "case when ? then current_timestamp else finished_at end where id = ?"
+                ),
+                (status.value, int(terminal), run_id),
+            )
 
     def get_run(self, run_id: str) -> dict[str, Any]:
         with self._connect() as conn:
@@ -126,6 +137,49 @@ class SqliteStore:
         if row is None:
             raise KeyError(run_id)
         return dict(row)
+
+    def list_runs_by_status(self, statuses: list[RunStatus]) -> list[dict[str, Any]]:
+        if not statuses:
+            return []
+        placeholders = ", ".join("?" for _ in statuses)
+        with self._connect() as conn:
+            rows = conn.execute(
+                f"select * from runs where status in ({placeholders}) order by created_at, id",
+                tuple(status.value for status in statuses),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def fail_interrupted_runs(self) -> list[str]:
+        interrupted = [RunStatus.CREATED.value, RunStatus.RUNNING.value]
+        with self._connect() as conn:
+            rows = conn.execute(
+                "select id from runs where status in (?, ?) order by created_at, id",
+                interrupted,
+            ).fetchall()
+            run_ids = [str(row["id"]) for row in rows]
+            for run_id in run_ids:
+                conn.execute(
+                    (
+                        "update runs set status = ?, finished_at = current_timestamp "
+                        "where id = ?"
+                    ),
+                    (RunStatus.FAILED.value, run_id),
+                )
+                conn.execute(
+                    (
+                        "insert into events(id, run_id, event_type, payload_json) "
+                        "values (?, ?, ?, ?)"
+                    ),
+                    (
+                        f"event-{uuid.uuid4().hex[:12]}",
+                        run_id,
+                        "run.finished",
+                        self._json(
+                            {"status": "failed", "reason": "process_restarted"}
+                        ),
+                    ),
+                )
+        return run_ids
 
     def create_approval(self, request: ApprovalRequest) -> None:
         redacted_action = self._redact(request.action.model_dump(mode="json"))
@@ -253,14 +307,24 @@ class SqliteStore:
             )
 
     def list_events(self, run_id: str) -> list[dict[str, Any]]:
+        return self.list_events_after(run_id, after_sequence=0, limit=None)
+
+    def list_events_after(
+        self,
+        run_id: str,
+        after_sequence: int = 0,
+        limit: int | None = 100,
+    ) -> list[dict[str, Any]]:
+        query = (
+            "select sequence, id, event_type, payload_json, created_at from events "
+            "where run_id = ? and sequence > ? order by sequence"
+        )
+        params: list[Any] = [run_id, after_sequence]
+        if limit is not None:
+            query += " limit ?"
+            params.append(limit)
         with self._connect() as conn:
-            rows = conn.execute(
-                (
-                    "select sequence, id, event_type, payload_json, created_at from events "
-                    "where run_id = ? order by sequence"
-                ),
-                (run_id,),
-            ).fetchall()
+            rows = conn.execute(query, tuple(params)).fetchall()
         return [
             {
                 "sequence": row["sequence"],

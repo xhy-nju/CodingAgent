@@ -49,10 +49,38 @@ class AgentLoop:
         self.approvals = ApprovalService(store)
 
     def run(self, task: str) -> RunSummary:
+        run_id = self.start_run(task)
+        return self.continue_run(run_id)
+
+    def start_run(self, task: str) -> str:
         run_id = self.store.create_run(task, str(self.workspace), self.policy_profile, self.llm_mode)
         self.store.update_run_status(run_id, RunStatus.RUNNING)
         self.events.append_event(run_id, EventType.RUN_STARTED, {"task": task})
-        return self._continue(run_id, task, start_step=0, feedback=[])
+        return run_id
+
+    def continue_run(self, run_id: str) -> RunSummary:
+        run = self.store.get_run(run_id)
+        return self._continue(run_id, str(run["task"]), start_step=0, feedback=[])
+
+    def fail_run(self, run_id: str, reason: str) -> RunSummary:
+        feedback = FeedbackSignal(
+            type=FeedbackType.COMMAND_FAILED,
+            severity="error",
+            summary=reason,
+            details={},
+        )
+        self.events.append_event(
+            run_id,
+            EventType.FEEDBACK_RECORDED,
+            feedback.model_dump(mode="json"),
+        )
+        self.store.update_run_status(run_id, RunStatus.FAILED)
+        self.events.append_event(
+            run_id,
+            EventType.RUN_FINISHED,
+            {"status": "failed", "reason": reason},
+        )
+        return RunSummary(run_id=run_id, status="failed", feedback=[feedback])
 
     def _continue(
         self,

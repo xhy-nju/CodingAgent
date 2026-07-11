@@ -74,6 +74,33 @@ def test_mock_loop_blocks_dangerous_action(tmp_path: Path) -> None:
     assert any(item.type == "guardrail_blocked" for item in summary.feedback)
 
 
+def test_loop_can_start_then_continue_a_persisted_run(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    loop = _loop(tmp_path, workspace, "dangerous_action")
+
+    run_id = loop.start_run("demonstrate guardrail")
+    assert loop.store.get_run(run_id)["status"] == "running"
+
+    summary = loop.continue_run(run_id)
+
+    assert summary.run_id == run_id
+    assert summary.status == "failed"
+
+
+def test_fail_run_records_terminal_feedback(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    loop = _loop(tmp_path, workspace, "dangerous_action")
+    run_id = loop.start_run("provider failure")
+
+    summary = loop.fail_run(run_id, "provider request failed")
+
+    assert summary.status == "failed"
+    assert summary.feedback[0].summary == "provider request failed"
+    assert loop.store.get_run(run_id)["finished_at"] is not None
+
+
 def test_mock_loop_fixes_sample_after_feedback(tmp_path: Path) -> None:
     workspace = tmp_path / "sample"
     workspace.mkdir()

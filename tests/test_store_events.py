@@ -4,6 +4,7 @@ from pathlib import Path
 from keyring.errors import PasswordDeleteError
 
 from coding_agent.credentials import CredentialService
+from coding_agent.domain import RunStatus
 from coding_agent.events import EventBus
 from coding_agent.store import SqliteStore
 
@@ -80,6 +81,45 @@ def test_events_have_monotonic_persisted_sequence(tmp_path: Path) -> None:
     events = store.list_events(run_id)
     assert [event["sequence"] for event in events] == [1, 2, 3]
     assert [event["payload"]["ordinal"] for event in events] == [1, 2, 3]
+
+
+def test_list_events_after_uses_persisted_sequence_cursor(tmp_path: Path) -> None:
+    store = SqliteStore(tmp_path / "agent.db")
+    run_id = store.create_run("task", str(tmp_path), "strict_demo", "mock")
+    store.append_event(run_id, "run.started", {"ordinal": 1})
+    first = store.list_events_after(run_id, after_sequence=0)
+    store.append_event(run_id, "run.finished", {"ordinal": 2})
+
+    second = store.list_events_after(
+        run_id, after_sequence=first[-1]["sequence"]
+    )
+
+    assert [event["payload"]["ordinal"] for event in second] == [2]
+
+
+def test_fail_interrupted_runs_preserves_waiting_approval(tmp_path: Path) -> None:
+    store = SqliteStore(tmp_path / "agent.db")
+    running = store.create_run("one", str(tmp_path), "strict_demo", "real")
+    waiting = store.create_run("two", str(tmp_path), "strict_demo", "real")
+    store.update_run_status(running, RunStatus.RUNNING)
+    store.update_run_status(waiting, RunStatus.WAITING_APPROVAL)
+
+    changed = store.fail_interrupted_runs()
+
+    assert changed == [running]
+    assert store.get_run(running)["status"] == "failed"
+    assert store.get_run(running)["finished_at"] is not None
+    assert store.get_run(waiting)["status"] == "waiting_approval"
+    assert store.list_events(running)[-1]["payload"]["reason"] == "process_restarted"
+
+
+def test_terminal_status_sets_finished_timestamp(tmp_path: Path) -> None:
+    store = SqliteStore(tmp_path / "agent.db")
+    run_id = store.create_run("task", str(tmp_path), "strict_demo", "mock")
+
+    store.update_run_status(run_id, RunStatus.SUCCEEDED)
+
+    assert store.get_run(run_id)["finished_at"] is not None
 
 
 def test_structured_event_and_memory_values_are_redacted_at_persistence(
