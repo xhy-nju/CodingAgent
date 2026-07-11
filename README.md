@@ -141,7 +141,14 @@ docker compose build
 - GitHub Actions：后端、前端、Docker、Compose 和敏感信息扫描。
 - `v*` 标签或手工触发 `publish-image.yml` 后发布 GHCR 镜像。
 
-公开镜像：尚未发布，推送分支并完成 GitHub Actions 后填写实际 `ghcr.io/...` 地址。
+公开镜像：`ghcr.io/xhy-nju/coding-agent:1.0.0`，同时发布 `1.0` 和 `latest` 标签。
+
+交付证据：
+
+- [完整工程 PR #1](https://github.com/xhy-nju/CodingAgent/pull/1)
+- [字节码稳定性修复 PR #2](https://github.com/xhy-nju/CodingAgent/pull/2)
+- [main 分支 CI](https://github.com/xhy-nju/CodingAgent/actions/runs/29154318485)
+- [v1.0.0 镜像发布](https://github.com/xhy-nju/CodingAgent/actions/runs/29154368105)
 
 公开 WebUI：尚未部署，完成阿里云 HTTPS 部署并从外网验证后填写实际 URL。
 

@@ -277,5 +277,17 @@
 - 规约修订：新增“领域与机制设计”“技术选型与理由”，并把 WebUI 页面、SQLite 表、CLI 和机制演示描述收敛到当前真实实现。
 - 计划闭环：`PLAN.md` 的任务总表和详细执行步骤统一标记为已完成，提交哈希仍以顶部证据表为准。
 - README 补全：增加三项课程机制的演示入口、预期结果、主要第三方依赖及许可证，并明确 GitHub-only 交付路径。
-- 人类所有权：`REFLECTION.md` 只提供事实材料和填写结构，1500-2500 字最终反思仍由学生本人完成并披露 AI 辅助。
+- 反思交付：`REFLECTION.md` 已整理为第一人称 1500-2500 字最终反思，并在末尾如实披露 AI 对规约、实现、调试和文字整理的辅助范围。
 - 外部证据边界：公开仓库、PR、GitHub Actions、GHCR、阿里云 URL 和视频必须在真实操作后记录，不使用占位链接冒充。
+
+## 阶段 6：GitHub 合并与镜像发布
+
+- 日期：2026-07-11。
+- 完整工程通过 [PR #1](https://github.com/xhy-nju/CodingAgent/pull/1) 合并到 `main`，保留阶段性提交历史。
+- PR 首轮 `secrets` job 因 gitleaks 新版要求显式 `GITHUB_TOKEN` 而失败；提交 `1c170cc` 增加 PR 读取权限、Token 注入和分发回归断言后，push/PR 共 8 项检查全部通过。
+- 合并后的 `main` CI 暴露 Mock bugfix demo 偶发失败。根因是同一时间戳内把 `return a * b` 改为同长度的 `return a + b` 时，Python 可能复用旧 `.pyc`。
+- 提交 `62cd484` 在每次 `run_tests` 前清理工作区 `__pycache__`，并用固定 mtime、同长度重写测试确定性复现和验证修复。
+- 稳定性修复通过 [PR #2](https://github.com/xhy-nju/CodingAgent/pull/2) 合并；backend、frontend、docker、secrets 的 push/PR 共 8 项检查全部通过。
+- 合并后 [main CI](https://github.com/xhy-nju/CodingAgent/actions/runs/29154318485) 成功，版本标签为 `v1.0.0`。
+- [镜像发布工作流](https://github.com/xhy-nju/CodingAgent/actions/runs/29154368105) 成功，公开镜像为 `ghcr.io/xhy-nju/coding-agent:1.0.0`。
+- 尚待外部操作：阿里云 HTTPS 部署、公网 URL、移动端截图和演示视频。

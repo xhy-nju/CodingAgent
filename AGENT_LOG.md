@@ -214,3 +214,12 @@
 - Codex 对照课程要求和代码现状修订 `SPEC.md`、`PLAN.md`、`README.md`、`REFLECTION.md` 与过程记录。
 - 修订重点：消除尚未实现的 WebUI/CLI 承诺，补齐领域机制、技术选型、三项可复现演示和第三方许可证。
 - 学术边界：Codex 未代写最终个人反思，只整理可核验事实、建议结构与 AI 使用披露模板。
+
+## 2026-07-11 - GitHub 交付与 v1.0.0 发布
+
+- 在人类所有者确认课堂允许 AI 辅助反思撰写后，Codex 根据既有事实材料整理第一人称最终反思，并保留 AI 使用披露。
+- 分支 `task1-domain-models` 推送后创建 PR #1；gitleaks PR 扫描缺少 `GITHUB_TOKEN`，通过提交 `1c170cc` 修复并获得 8 项 CI 全绿。
+- PR #1 合并后，main CI 暴露 Python 同 mtime、同文件长度重写导致的陈旧 `.pyc` 问题。
+- 在分支 `codex/fix-demo-pycache` 以 TDD 添加确定性复现，提交 `62cd484` 清理可变工作区字节码；PR #2 的 8 项 CI 全绿后合并。
+- main CI 成功后推送 `v1.0.0`，GHCR workflow 成功发布 `ghcr.io/xhy-nju/coding-agent:1.0.0`、`1.0` 和 `latest`。
+- 真实外部链接已写入 README；阿里云公网部署和视频仍待完成。
