@@ -3,12 +3,13 @@ from __future__ import annotations
 import json
 from typing import Any
 
+import httpx
 import pytest
 from keyring.errors import KeyringError, PasswordDeleteError
 
 from coding_agent.credentials import CredentialService, CredentialSnapshot
 from coding_agent.domain import FeedbackSignal, FeedbackType, MemoryRecord
-from coding_agent.llm import LLMContext, RealLLMProvider
+from coding_agent.llm import LLMContext, LLMProviderError, RealLLMProvider
 
 
 class FakeKeyring:
@@ -213,7 +214,13 @@ def test_real_provider_posts_openai_compatible_request(monkeypatch) -> None:
     assert captured["url"] == "https://example.test/v1/chat/completions"
     assert captured["headers"] == {"Authorization": "Bearer provider-token-for-test"}
     assert captured["json"]["model"] == "demo-model"
-    assert captured["json"]["messages"][1]["content"] == "Task: fix tests\nStep: 2"
+    system_message = captured["json"]["messages"][0]["content"]
+    user_message = captured["json"]["messages"][1]["content"]
+    assert "Return exactly one JSON object" in system_message
+    assert "run_tests" in system_message
+    assert "write_file" in system_message
+    assert "Task: fix tests" in user_message
+    assert "Step: 2/8" in user_message
     assert captured["json"]["max_tokens"] == 512
     assert captured["timeout"] == 30
 
@@ -278,6 +285,46 @@ def test_real_provider_redacts_context_values_before_constructing_messages(monke
     assert feedback.summary.endswith(token)
     assert feedback.details["raw"] == token
     assert memory.content.endswith(token)
+
+
+def test_real_provider_converts_timeout_to_stable_error(monkeypatch) -> None:
+    def timeout(*args, **kwargs):
+        raise httpx.TimeoutException("secret response body")
+
+    monkeypatch.setattr("coding_agent.llm.httpx.post", timeout)
+    provider = RealLLMProvider(
+        provider_token="provider-token-for-test",
+        base_url="https://example.test/v1",
+        model="demo-model",
+        enabled=True,
+    )
+
+    with pytest.raises(LLMProviderError, match="timed out") as error:
+        provider.next_action(LLMContext(task="probe", step_index=0, feedback=[]))
+
+    assert "secret response body" not in str(error.value)
+
+
+def test_real_provider_rejects_missing_choices_without_response_dump(monkeypatch) -> None:
+    class FakeResponse:
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict[str, Any]:
+            return {"provider_debug": "must-not-be-exposed"}
+
+    monkeypatch.setattr("coding_agent.llm.httpx.post", lambda *args, **kwargs: FakeResponse())
+    provider = RealLLMProvider(
+        provider_token="provider-token-for-test",
+        base_url="https://example.test/v1",
+        model="demo-model",
+        enabled=True,
+    )
+
+    with pytest.raises(LLMProviderError, match="invalid response") as error:
+        provider.next_action(LLMContext(task="probe", step_index=0, feedback=[]))
+
+    assert "must-not-be-exposed" not in str(error.value)
 
 
 @pytest.mark.parametrize("content", [None, "", "   ", 42])

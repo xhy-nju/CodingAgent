@@ -23,6 +23,7 @@ from coding_agent.llm import MockLLMProvider
 from coding_agent.memory import MemoryService
 from coding_agent.policies import load_policy
 from coding_agent.redaction import redact_value
+from coding_agent.run_service import RealRunUnavailable, RunService
 from coding_agent.store import SqliteStore
 from coding_agent.tools.dispatcher import build_default_dispatcher
 
@@ -39,6 +40,11 @@ class ApprovalDecisionRequest(BaseModel):
 
 class LoginRequest(BaseModel):
     password: str = Field(min_length=1, max_length=4096)
+
+
+class CreateRunRequest(BaseModel):
+    mode: Literal["real"]
+    task: str = Field(min_length=1, max_length=4000)
 
 
 def _workspace_for_demo(name: str, data_dir: Path) -> Path:
@@ -96,6 +102,7 @@ def create_app(
     data_dir: Path | None = None,
     credential_service: CredentialService | None = None,
     auth_service: AuthService | None = None,
+    run_service: RunService | None = None,
 ) -> FastAPI:
     app = FastAPI(title="CodingAgent Harness")
     app.state.pending_loops = {}
@@ -115,6 +122,12 @@ def create_app(
 
     def public(value: Any, snapshot: CredentialSnapshot) -> Any:
         return redact_value(value, snapshot.provider_token)[0]
+
+    runs = run_service or RunService(
+        data_dir=runtime_dir,
+        credential_resolver=current_snapshot,
+    )
+    app.state.run_service = runs
 
     def session_status(request: Request) -> SessionStatus:
         return auth.verify_session(request.cookies.get(AuthService.COOKIE_NAME))
@@ -179,6 +192,26 @@ def create_app(
         if result["status"] == RunStatus.WAITING_APPROVAL.value:
             app.state.pending_loops[result["run_id"]] = loop
         return public(result, snapshot)
+
+    @app.post("/api/runs", status_code=202)
+    def create_run(request: CreateRunRequest, http_request: Request) -> dict[str, object]:
+        require_admin(http_request)
+        require_same_origin(http_request)
+        try:
+            run_id = runs.create_real_run(request.task, background=True)
+        except RealRunUnavailable as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        return runs.get_summary(run_id).model_dump(mode="json")
+
+    @app.get("/api/runs/{run_id}")
+    def run_status(run_id: str, request: Request) -> dict[str, object]:
+        try:
+            run = runs.get_run(run_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="run not found") from exc
+        if run["llm_mode"] == "real":
+            require_admin(request)
+        return runs.get_summary(run_id).model_dump(mode="json")
 
     @app.get("/api/runs/{run_id}/events")
     def run_events(run_id: str) -> StreamingResponse:

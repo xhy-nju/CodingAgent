@@ -99,6 +99,7 @@ class AgentLoop:
                     step_index=step_index,
                     feedback=feedback,
                     memories=memories,
+                    max_steps=self.max_steps,
                 )
             )
             self.events.append_event(run_id, EventType.LLM_OUTPUT, {"step": step_index, "raw": raw})

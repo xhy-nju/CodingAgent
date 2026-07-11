@@ -7,6 +7,7 @@ from coding_agent.api import create_app
 from coding_agent.auth import AuthService
 from coding_agent.credentials import CredentialService, CredentialSnapshot
 from coding_agent.memory import MemoryService
+from coding_agent.agent_loop import RunSummary
 from coding_agent.store import SqliteStore
 
 
@@ -241,3 +242,51 @@ def test_memory_endpoint_returns_real_scoped_records(tmp_path: Path) -> None:
     assert [item["content"] for item in response.json()["records"]] == [
         "Use the focused calculator test"
     ]
+
+
+def test_real_run_endpoint_requires_login(tmp_path: Path) -> None:
+    client = TestClient(create_app(data_dir=tmp_path))
+
+    response = client.post(
+        "/api/runs", json={"mode": "real", "task": "Repair calculator"}
+    )
+
+    assert response.status_code == 401
+
+
+def test_authenticated_real_run_returns_accepted_run_id(tmp_path: Path) -> None:
+    class FakeRuns:
+        def create_real_run(self, task: str, background: bool = True) -> str:
+            assert task == "Repair calculator"
+            assert background is True
+            return "run-real-1"
+
+        def get_summary(self, run_id: str) -> RunSummary:
+            return RunSummary(run_id=run_id, status="running", feedback=[])
+
+        def get_run(self, run_id: str) -> dict[str, object]:
+            return {"id": run_id, "llm_mode": "real", "status": "running"}
+
+    auth = AuthService(
+        admin_password="test-admin-password",
+        session_secret="test-session-secret-that-is-long-enough",
+    )
+    client = TestClient(
+        create_app(data_dir=tmp_path, auth_service=auth, run_service=FakeRuns())
+    )
+    client.post("/api/auth/login", json={"password": "test-admin-password"})
+
+    response = client.post(
+        "/api/runs", json={"mode": "real", "task": "Repair calculator"}
+    )
+
+    assert response.status_code == 202
+    assert response.json() == {
+        "run_id": "run-real-1",
+        "status": "running",
+        "feedback": [],
+        "pending_approval_id": None,
+    }
+    status = client.get("/api/runs/run-real-1")
+    assert status.status_code == 200
+    assert status.json()["status"] == "running"

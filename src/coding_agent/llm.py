@@ -17,11 +17,16 @@ class LLMContext:
     feedback: list[FeedbackSignal]
     memories: tuple[MemoryRecord, ...] = ()
     max_completion_tokens: int = 512
+    max_steps: int = 8
 
 
 class LLMProvider:
     def next_action(self, context: LLMContext) -> str:
         raise NotImplementedError
+
+
+class LLMProviderError(RuntimeError):
+    pass
 
 
 class MockLLMProvider(LLMProvider):
@@ -88,6 +93,14 @@ class MockLLMProvider(LLMProvider):
 
 
 class RealLLMProvider(LLMProvider):
+    SYSTEM_PROMPT = """You are the planning component of CodingAgent.
+Return exactly one JSON object and no Markdown or surrounding text.
+The object must have: kind, args, reason, expectation; tool actions also require tool.
+Allowed kinds: tool, remember, final, request_user.
+Allowed tools: read_file, write_file, run_tests, run_lint, run_command, memory_write.
+Use one action per response. Never access paths outside the provided workspace.
+Never include credentials or secrets. A final action must use an empty args object."""
+
     def __init__(
         self,
         provider_token: str | None,
@@ -127,34 +140,38 @@ class RealLLMProvider(LLMProvider):
             f"- {redact_value(record.content, self.provider_token)[0]}"
             for record in context.memories
         )
-        user_content = f"Task: {task}\nStep: {context.step_index}"
+        user_content = (
+            f"Task: {task}\nStep: {context.step_index}/{context.max_steps}"
+        )
         if feedback:
             user_content += f"\nFeedback:\n{json.dumps(feedback, ensure_ascii=False)}"
         if memory_text:
             user_content += f"\nRelevant memory:\n{memory_text}"
-        response = httpx.post(
-            f"{self.base_url}/chat/completions",
-            headers={"Authorization": f"Bearer {self.provider_token}"},
-            json={
-                "model": self.model,
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": "Return exactly one strict JSON CodingAgent action.",
-                    },
-                    {
-                        "role": "user",
-                        "content": user_content,
-                    },
-                ],
-                "temperature": 0,
-                "max_tokens": context.max_completion_tokens,
-            },
-            timeout=30,
-        )
-        response.raise_for_status()
-        payload = response.json()
-        content = payload["choices"][0]["message"]["content"]
+        try:
+            response = httpx.post(
+                f"{self.base_url}/chat/completions",
+                headers={"Authorization": f"Bearer {self.provider_token}"},
+                json={
+                    "model": self.model,
+                    "messages": [
+                        {"role": "system", "content": self.SYSTEM_PROMPT},
+                        {"role": "user", "content": user_content},
+                    ],
+                    "temperature": 0,
+                    "max_tokens": context.max_completion_tokens,
+                },
+                timeout=30,
+            )
+            response.raise_for_status()
+        except httpx.TimeoutException:
+            raise LLMProviderError("provider request timed out") from None
+        except httpx.HTTPError:
+            raise LLMProviderError("provider request failed") from None
+        try:
+            payload = response.json()
+            content = payload["choices"][0]["message"]["content"]
+        except (KeyError, IndexError, TypeError, ValueError):
+            raise LLMProviderError("provider returned an invalid response") from None
         if not isinstance(content, str) or not content.strip():
             raise ValueError("provider assistant content must be a non-empty string")
         return content
