@@ -222,7 +222,7 @@
 - PR #1 合并后，main CI 暴露 Python 同 mtime、同文件长度重写导致的陈旧 `.pyc` 问题。
 - 在分支 `codex/fix-demo-pycache` 以 TDD 添加确定性复现，提交 `62cd484` 清理可变工作区字节码；PR #2 的 8 项 CI 全绿后合并。
 - main CI 成功后推送 `v1.0.0`，GHCR workflow 成功发布 `ghcr.io/xhy-nju/coding-agent:1.0.0`、`1.0` 和 `latest`。
-- 真实外部链接已写入 README；阿里云公网部署和视频仍待完成。
+- 该阶段结束时，阿里云公网部署和视频仍待完成；最终证据在后续 2026-07-12 记录中补齐。
 
 ## 2026-07-11 - 真实 Calculator 浏览器验收与闭环修复
 
@@ -233,3 +233,19 @@
 - 独立证据：容器工作区中的 `calculator.py` 为 `return a + b`；容器内复测 2 项通过；后端全量 `145 passed`；前端 `12 passed` 且生产构建成功；浏览器控制台无 warning/error。
 - Docker 首次重建曾因包索引响应截断而失败，重试后镜像构建成功。后续为避免重复下载依赖，将已通过构建和测试的最终文件同步到本地健康容器做运行验收；最终提交仍要求由 GitHub Actions 从零构建。
 - 新增 `docs/demo-video-script.md`，将课程要求的 mock 机制演示、真实 LLM、凭据安全、CI、PR、GHCR 和公网 WebUI 整理为 7 分钟录制流程。
+
+## 2026-07-12 - 公网部署与 v1.0.1 发布
+
+- 任务：排查阿里云公网环境真实 LLM 异常，并将当前 `main` 的 calculator 闭环修复发布为可部署镜像。
+- 线上诊断：`/api/health` 返回正常，凭据状态为 `configured=true`、`real_enabled=true`，但前端资产哈希与当前构建不一致，确认服务器仍使用旧发布镜像。
+- 配置根因：公网地址使用 HTTP，而生产 Compose 原先强制 `COOKIE_SECURE=true`；修复后安全默认值仍为 `true`，仅允许临时 HTTP 演示显式覆盖为 `false`。
+- 交付结果：[PR #5](https://github.com/xhy-nju/CodingAgent/pull/5) 合并，`v1.0.1` 发布工作流成功，镜像为 `ghcr.io/xhy-nju/coding-agent:1.0.1`。
+- 独立验收：使用发布镜像启动隔离容器，完成登录、凭据检查和真实 `glm-5.2` calculator 任务；动作序列为 `list_files → read_file → write_file → run_tests`，最终 `succeeded`。
+- 公网 WebUI：[http://47.96.99.58/](http://47.96.99.58/)；按量计费 ECS 停机期间该地址不可访问。
+
+## 2026-07-12 - 演示视频与最终文档收敛
+
+- 人类所有者按照 `docs/demo-video-script.md` 完成演示视频录制，文件名为 `项目演示视频.mp4`，大小约 17.6 MiB。
+- 视频通过 [PR #6](https://github.com/xhy-nju/CodingAgent/pull/6) 合并到 `main`，backend、frontend、docker、secrets 检查全部通过。
+- 最新 main CI 为 [#29197433911](https://github.com/xhy-nju/CodingAgent/actions/runs/29197433911)，状态 `success`。
+- README 第一屏补齐项目名称、代码仓库、公网 WebUI、视频、容器镜像和 CI 链接；SPEC、PLAN 和过程记录同步到最终交付状态。

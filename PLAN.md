@@ -50,6 +50,15 @@
 - [x] 生产 Compose、Nginx、CI 与 GHCR 工作流，`90a00ff`。
 - [x] 最终总回归、浏览器验收和课程证据更新，`e60a557`。
 
+2026-07-12 最终交付闭环：
+
+- [x] 真实 LLM calculator 工具反馈与审批链路修复，通过 [PR #4](https://github.com/xhy-nju/CodingAgent/pull/4) 合并。
+- [x] HTTP 临时演示与 HTTPS 正式部署的 Cookie 配置分离，通过 [PR #5](https://github.com/xhy-nju/CodingAgent/pull/5) 合并。
+- [x] 发布 `ghcr.io/xhy-nju/coding-agent:1.0.1` 并完成真实 `glm-5.2` 隔离验收。
+- [x] 阿里云公网 WebUI 部署到 [http://47.96.99.58/](http://47.96.99.58/)。
+- [x] 演示视频通过 [PR #6](https://github.com/xhy-nju/CodingAgent/pull/6) 提交到仓库。
+- [x] 最新 `main` CI [#29197433911](https://github.com/xhy-nju/CodingAgent/actions/runs/29197433911) 全部通过。
+
 ---
 
 ## File Structure
