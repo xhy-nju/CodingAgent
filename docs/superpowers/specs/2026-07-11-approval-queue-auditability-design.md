@@ -17,4 +17,3 @@ Arguments are rendered as escaped text with `JSON.stringify`; they are never int
 ## Verification
 
 Frontend component tests will cover visible action context and independent form values for multiple approvals. The full frontend suite, production build, backend suite, Docker health check, and a browser-driven real calculator run must pass.
-
