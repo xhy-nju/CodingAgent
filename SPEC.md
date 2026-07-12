@@ -309,7 +309,7 @@ CI 不依赖真实 LLM，不需要 provider token。所有机制测试使用 moc
 - 代码仓库：[xhy-nju/CodingAgent](https://github.com/xhy-nju/CodingAgent)。
 - 公网 WebUI：[http://47.96.99.58/](http://47.96.99.58/)。
 - 固定版本镜像：`ghcr.io/xhy-nju/coding-agent:1.0.1`。
-- 最新 main CI：[GitHub Actions #29197433911](https://github.com/xhy-nju/CodingAgent/actions/runs/29197433911)。
+- main CI 状态：[GitHub Actions 工作流](https://github.com/xhy-nju/CodingAgent/actions/workflows/ci.yml?query=branch%3Amain)；最终文档合并基线为 [#29198219952](https://github.com/xhy-nju/CodingAgent/actions/runs/29198219952)。
 - 演示视频：[项目演示视频.mp4](项目演示视频.mp4)。
 
 公网服务依赖按量计费 ECS 处于运行状态；HTTP 地址用于当前课程演示，正式生产部署仍应启用域名、HTTPS 和 Secure Cookie。
