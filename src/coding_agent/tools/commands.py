@@ -1,12 +1,25 @@
 from __future__ import annotations
 
 import shutil
+import shlex
 import subprocess
 import time
 
 from coding_agent.domain import ToolResult
 from coding_agent.feedback import parse_pytest_output
 from coding_agent.tools.base import ToolContext
+
+
+def normalize_command(value: object) -> list[str]:
+    if isinstance(value, str):
+        command = shlex.split(value)
+    elif isinstance(value, list):
+        command = [str(part) for part in value]
+    else:
+        raise TypeError("command must be a string or list")
+    if not command:
+        raise ValueError("command must not be empty")
+    return command
 
 
 def run_tests(args: dict[str, object], context: ToolContext) -> ToolResult:
@@ -38,7 +51,7 @@ def run_tests(args: dict[str, object], context: ToolContext) -> ToolResult:
 
 
 def run_command(args: dict[str, object], context: ToolContext) -> ToolResult:
-    command = [str(part) for part in args["command"]]
+    command = normalize_command(args["command"])
     start = time.monotonic()
     completed = subprocess.run(
         command,

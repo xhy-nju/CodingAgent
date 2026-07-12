@@ -32,6 +32,7 @@ class FeedbackType(StrEnum):
     TIMEOUT = "timeout"
     FILE_DIFF = "file_diff"
     MEMORY_WRITTEN = "memory_written"
+    TOOL_OBSERVATION = "tool_observation"
 
 
 class RunStatus(StrEnum):

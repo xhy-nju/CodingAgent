@@ -4,6 +4,7 @@ from pathlib import Path
 
 from coding_agent.domain import Action, GuardrailDecision, GuardrailDecisionType
 from coding_agent.policies import PolicyProfile
+from coding_agent.tools.commands import normalize_command
 
 
 class GuardrailEngine:
@@ -26,11 +27,20 @@ class GuardrailEngine:
             rules.append("path.outside_workspace")
 
         command = action.args.get("command")
-        if isinstance(command, list):
-            command_text = " ".join(str(part) for part in command)
+        if command is not None:
+            try:
+                normalized_command = normalize_command(command)
+            except (TypeError, ValueError):
+                rules.append("command.invalid")
+                normalized_command = []
+            command_text = " ".join(normalized_command)
             if any(fragment in command_text for fragment in self.policy.denied_command_fragments):
                 rules.append("command.denied_fragment")
-            if action.tool == "run_command" and not self._command_prefix_allowed(command):
+            if (
+                action.tool == "run_command"
+                and normalized_command
+                and not self._command_prefix_allowed(normalized_command)
+            ):
                 rules.append("command.prefix_not_allowed")
 
         for value in action.args.values():

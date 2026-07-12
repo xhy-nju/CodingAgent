@@ -55,4 +55,17 @@ def feedback_from_tool_result(result: ToolResult) -> list[FeedbackSignal]:
                 summary=result.stderr_summary or "tool failed",
             )
         ]
+    if result.status == "ok":
+        return [
+            FeedbackSignal(
+                type=FeedbackType.TOOL_OBSERVATION,
+                severity="info",
+                summary="tool completed successfully",
+                details={
+                    "stdout": result.stdout_summary,
+                    "stderr": result.stderr_summary,
+                    "artifacts": result.artifacts,
+                },
+            )
+        ]
     return []

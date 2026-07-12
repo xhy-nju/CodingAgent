@@ -600,6 +600,56 @@ button:disabled {
   color: #3f5774;
 }
 
+.approval-context {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 18px;
+  margin: 0;
+  padding: 14px 0 2px;
+  border-top: 1px solid #e1e7ef;
+}
+
+.approval-context > div {
+  min-width: 0;
+}
+
+.approval-context dt {
+  margin-bottom: 5px;
+  color: #687990;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.approval-context dd {
+  margin: 0;
+  color: #24364d;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.approval-context pre {
+  margin: 0;
+  padding: 10px 12px;
+  overflow-x: auto;
+  background: #101b2b;
+  color: #dce8f7;
+  border-radius: 6px;
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+
+.approval-context-wide {
+  grid-column: 1 / -1;
+}
+
+.approval-rules {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .approval-form {
   grid-column: 1 / -1;
   display: grid;
@@ -676,6 +726,15 @@ button:disabled {
   }
 
   .approval-form {
+    grid-column: 1;
+  }
+
+  .approval-context {
+    grid-column: 1;
+    grid-template-columns: 1fr;
+  }
+
+  .approval-context-wide {
     grid-column: 1;
   }
 

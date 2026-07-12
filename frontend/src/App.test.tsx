@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
@@ -150,5 +150,130 @@ describe("App", () => {
       "course-admin",
       "Command and workspace reviewed",
     );
+  });
+
+  it("shows auditable action context and keeps approval forms independent", async () => {
+    vi.mocked(fetchApprovals)
+      .mockResolvedValueOnce({
+        approvals: [
+        {
+          id: "approval-old",
+          run_id: "run-old",
+          action_id: "action-old",
+          state: "pending",
+          rules: ["tool.requires_approval"],
+          reason: "Manual review required",
+          action: {
+            kind: "tool",
+            tool: "run_command",
+            args: { command: "ls -la" },
+            reason: "inspect the workspace",
+            expectation: "workspace listing",
+          },
+        },
+        {
+          id: "approval-current",
+          run_id: "run-current",
+          action_id: "action-current",
+          state: "pending",
+          rules: ["tool.requires_approval", "command.reviewed"],
+          reason: "Manual review required",
+          action: {
+            kind: "tool",
+            tool: "run_command",
+            args: { command: ["python", "-m", "pytest"] },
+            reason: "verify the calculator fix",
+            expectation: "all tests pass",
+          },
+        },
+        ],
+      })
+      .mockResolvedValueOnce({
+        approvals: [
+          {
+            id: "approval-next",
+            run_id: "run-current",
+            action_id: "action-next",
+            state: "pending",
+            rules: ["tool.requires_approval"],
+            reason: "Next manual review",
+            action: {
+              kind: "tool",
+              tool: "run_command",
+              args: { command: "cat calculator.py" },
+              reason: "inspect calculator implementation",
+              expectation: "calculator source",
+            },
+          },
+        ],
+      });
+    render(<App />);
+
+    await userEvent.click(await screen.findByRole("button", { name: /Approvals/i }));
+
+    const currentRun = await screen.findByText("run-current");
+    const currentCard = currentRun.closest("article");
+    expect(currentCard).not.toBeNull();
+    const oldRun = screen.getByText("run-old");
+    const oldCard = oldRun.closest("article");
+    expect(oldCard).not.toBeNull();
+
+    expect(within(currentCard!).getByText("action-current")).toBeInTheDocument();
+    expect(within(currentCard!).getByText(/python/)).toBeInTheDocument();
+    expect(within(currentCard!).getByText("verify the calculator fix")).toBeInTheDocument();
+    expect(within(currentCard!).getByText("all tests pass")).toBeInTheDocument();
+    expect(within(currentCard!).getByText("command.reviewed")).toBeInTheDocument();
+
+    await userEvent.type(within(oldCard!).getByLabelText("Reviewer"), "old-reviewer");
+    await userEvent.type(within(oldCard!).getByLabelText("Reason"), "Review old request later");
+    await userEvent.type(within(currentCard!).getByLabelText("Reviewer"), "course-admin");
+    await userEvent.type(
+      within(currentCard!).getByLabelText("Reason"),
+      "Safe test command in isolated workspace",
+    );
+    await userEvent.click(within(currentCard!).getByRole("button", { name: "Approve once" }));
+
+    expect(decideApproval).toHaveBeenCalledWith(
+      "approval-current",
+      "approve",
+      "course-admin",
+      "Safe test command in isolated workspace",
+    );
+    expect(await screen.findByText("action-next")).toBeInTheDocument();
+  });
+
+  it("keeps a successful decision when the queue refresh fails", async () => {
+    vi.mocked(fetchApprovals)
+      .mockResolvedValueOnce({
+        approvals: [
+          {
+            id: "approval-refresh",
+            run_id: "run-refresh",
+            action_id: "action-refresh",
+            state: "pending",
+            rules: ["tool.requires_approval"],
+            reason: "Manual review required",
+            action: {
+              kind: "tool",
+              tool: "run_command",
+              args: { command: ["pytest"] },
+              reason: "run tests",
+              expectation: "test result",
+            },
+          },
+        ],
+      })
+      .mockRejectedValueOnce(new Error("refresh offline"));
+    render(<App />);
+
+    await userEvent.click(await screen.findByRole("button", { name: /Approvals/i }));
+    const card = (await screen.findByText("action-refresh")).closest("article");
+    expect(card).not.toBeNull();
+    await userEvent.type(within(card!).getByLabelText("Reviewer"), "course-admin");
+    await userEvent.type(within(card!).getByLabelText("Reason"), "Reviewed safe test command");
+    await userEvent.click(within(card!).getByRole("button", { name: "Approve once" }));
+
+    expect(await screen.findByText("Approval saved, but queue refresh failed")).toBeInTheDocument();
+    expect(screen.queryByText("action-refresh")).not.toBeInTheDocument();
   });
 });

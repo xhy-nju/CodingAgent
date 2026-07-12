@@ -223,3 +223,13 @@
 - 在分支 `codex/fix-demo-pycache` 以 TDD 添加确定性复现，提交 `62cd484` 清理可变工作区字节码；PR #2 的 8 项 CI 全绿后合并。
 - main CI 成功后推送 `v1.0.0`，GHCR workflow 成功发布 `ghcr.io/xhy-nju/coding-agent:1.0.0`、`1.0` 和 `latest`。
 - 真实外部链接已写入 README；阿里云公网部署和视频仍待完成。
+
+## 2026-07-11 - 真实 Calculator 浏览器验收与闭环修复
+
+- 使用技能：`superpowers:systematic-debugging`、`superpowers:test-driven-development`、`superpowers:verification-before-completion`，并通过应用内浏览器逐步执行真实任务。
+- 首次复现发现审批队列缺少 run ID、动作参数和模型理由，多张卡片还共用审核表单；提交 `480bae4` 增加完整审计上下文和独立表单，提交 `897c50e` 在进入审批页和每次决策后重新获取队列。
+- 继续运行发现模型返回字符串命令时被逐字符执行，同时成功的文件工具结果没有回灌给下一轮模型。先添加失败测试，再提交 `0a7803e`：安全规范化字符串/数组命令、检查字符串危险片段、增加 `tool_observation`、修正真实 Provider 的工具 schema。
+- 真实运行 `run-ea1154bb1f8a` 按 `list_files → read_file → write_file → run_tests` 完成默认 calculator 任务，最终 `succeeded`，pytest 为 `2 passed`。
+- 独立证据：容器工作区中的 `calculator.py` 为 `return a + b`；容器内复测 2 项通过；后端全量 `145 passed`；前端 `12 passed` 且生产构建成功；浏览器控制台无 warning/error。
+- Docker 首次重建曾因包索引响应截断而失败，重试后镜像构建成功。后续为避免重复下载依赖，将已通过构建和测试的最终文件同步到本地健康容器做运行验收；最终提交仍要求由 GitHub Actions 从零构建。
+- 新增 `docs/demo-video-script.md`，将课程要求的 mock 机制演示、真实 LLM、凭据安全、CI、PR、GHCR 和公网 WebUI 整理为 7 分钟录制流程。
