@@ -1,5 +1,19 @@
 # CodingAgent
 
+## 项目信息
+
+| 项目 | 地址或说明 |
+| --- | --- |
+| 项目名称 | CodingAgent Harness |
+| 代码仓库 | [github.com/xhy-nju/CodingAgent](https://github.com/xhy-nju/CodingAgent) |
+| 公网 WebUI | [http://47.96.99.58/](http://47.96.99.58/) |
+| 演示视频 | [项目演示视频.mp4](项目演示视频.mp4) |
+| 容器镜像 | `ghcr.io/xhy-nju/coding-agent:1.0.1` |
+| 最新版本 | [`v1.0.1`](https://github.com/xhy-nju/CodingAgent/tree/v1.0.1) |
+| 最新 main CI | [GitHub Actions #29197433911](https://github.com/xhy-nju/CodingAgent/actions/runs/29197433911) |
+
+公网 WebUI 部署在按量计费的阿里云 ECS 上，课程提交与验收期间保持运行；实例停机时该地址不可访问。当前以 HTTP 地址提供课程演示，生产使用应按[阿里云部署文档](docs/deployment-aliyun.md)配置域名和 HTTPS。
+
 CodingAgent 是 AI4SE 期末项目 A 类方向的 Coding Agent Harness。项目自行实现 Agent 主循环、严格动作协议、工具分发、治理护栏、HITL 审批、反馈闭环、记忆和审计机制，不使用现成 Agent 框架充当主体。
 
 ## 主要贡献
@@ -141,16 +155,19 @@ docker compose build
 - GitHub Actions：后端、前端、Docker、Compose 和敏感信息扫描。
 - `v*` 标签或手工触发 `publish-image.yml` 后发布 GHCR 镜像。
 
-公开镜像：`ghcr.io/xhy-nju/coding-agent:1.0.0`，同时发布 `1.0` 和 `latest` 标签。
+公开镜像：`ghcr.io/xhy-nju/coding-agent:1.0.1`，同时发布 `1.0` 和 `latest` 标签。课程部署建议固定使用 `1.0.1`，避免浮动标签带来版本差异。
 
 交付证据：
 
 - [完整工程 PR #1](https://github.com/xhy-nju/CodingAgent/pull/1)
 - [字节码稳定性修复 PR #2](https://github.com/xhy-nju/CodingAgent/pull/2)
-- [main 分支 CI](https://github.com/xhy-nju/CodingAgent/actions/runs/29154318485)
-- [v1.0.0 镜像发布](https://github.com/xhy-nju/CodingAgent/actions/runs/29154368105)
+- [真实 LLM calculator 闭环修复 PR #4](https://github.com/xhy-nju/CodingAgent/pull/4)
+- [公网部署配置修复 PR #5](https://github.com/xhy-nju/CodingAgent/pull/5)
+- [演示视频 PR #6](https://github.com/xhy-nju/CodingAgent/pull/6)
+- [最新 main 分支 CI](https://github.com/xhy-nju/CodingAgent/actions/runs/29197433911)
+- [v1.0.1 镜像发布](https://github.com/xhy-nju/CodingAgent/actions/runs/29180966316)
 
-公开 WebUI：尚未部署，完成阿里云 HTTPS 部署并从外网验证后填写实际 URL。
+公开 WebUI：[http://47.96.99.58/](http://47.96.99.58/)；健康检查为 `http://47.96.99.58/api/health`。演示视频见仓库根目录的[项目演示视频.mp4](项目演示视频.mp4)。
 
 ## 安全边界
 

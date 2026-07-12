@@ -302,4 +302,14 @@ CI 不依赖真实 LLM，不需要 provider token。所有机制测试使用 moc
 
 ## 15. 版本门禁
 
-阶段 1 规约、Writing Plans、opencode 冷启动验证和正式实现均已完成。当前实现包含 Mock/Real 双模式、完整 AgentLoop、确定性治理护栏、反馈、Memory、工具分发、HITL、管理员会话、WebUI、Docker、CI 与生产部署模板。公开 GHCR 镜像和公网 WebUI URL 必须在实际推送与阿里云部署成功后记录，不能用占位地址冒充完成证据。
+阶段 1 规约、Writing Plans、opencode 冷启动验证和正式实现均已完成。当前实现包含 Mock/Real 双模式、完整 AgentLoop、确定性治理护栏、反馈、Memory、工具分发、HITL、管理员会话、WebUI、Docker、CI 与生产部署模板。
+
+最终外部证据已经完成并记录：
+
+- 代码仓库：[xhy-nju/CodingAgent](https://github.com/xhy-nju/CodingAgent)。
+- 公网 WebUI：[http://47.96.99.58/](http://47.96.99.58/)。
+- 固定版本镜像：`ghcr.io/xhy-nju/coding-agent:1.0.1`。
+- 最新 main CI：[GitHub Actions #29197433911](https://github.com/xhy-nju/CodingAgent/actions/runs/29197433911)。
+- 演示视频：[项目演示视频.mp4](项目演示视频.mp4)。
+
+公网服务依赖按量计费 ECS 处于运行状态；HTTP 地址用于当前课程演示，正式生产部署仍应启用域名、HTTPS 和 Secure Cookie。

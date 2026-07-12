@@ -290,4 +290,14 @@
 - 稳定性修复通过 [PR #2](https://github.com/xhy-nju/CodingAgent/pull/2) 合并；backend、frontend、docker、secrets 的 push/PR 共 8 项检查全部通过。
 - 合并后 [main CI](https://github.com/xhy-nju/CodingAgent/actions/runs/29154318485) 成功，版本标签为 `v1.0.0`。
 - [镜像发布工作流](https://github.com/xhy-nju/CodingAgent/actions/runs/29154368105) 成功，公开镜像为 `ghcr.io/xhy-nju/coding-agent:1.0.0`。
-- 尚待外部操作：阿里云 HTTPS 部署、公网 URL、移动端截图和演示视频。
+- 阶段 6 结束时尚待外部操作：阿里云公网部署、移动端截图和演示视频；这些事项在后续阶段继续完成。
+
+## 阶段 7：公网部署、v1.0.1 与最终演示材料
+
+- 日期：2026-07-12。
+- 阿里云 Ubuntu 使用 Docker Compose 和 Nginx 完成公网部署，WebUI 地址为 [http://47.96.99.58/](http://47.96.99.58/)，外部健康检查返回 `{"status":"ok"}`。
+- 公网排障确认服务器仍运行旧发布镜像，且纯 HTTP 地址与强制 `COOKIE_SECURE=true` 冲突。通过 [PR #5](https://github.com/xhy-nju/CodingAgent/pull/5) 将安全默认值保留为 `true`，同时允许临时 HTTP 演示显式设置 `false`。
+- `v1.0.1` 镜像发布工作流 [#29180966316](https://github.com/xhy-nju/CodingAgent/actions/runs/29180966316) 成功；隔离容器使用相同 OpenAI-compatible 配置完成真实 calculator 任务，最终状态为 `succeeded`。
+- 演示视频 `项目演示视频.mp4` 通过 [PR #6](https://github.com/xhy-nju/CodingAgent/pull/6) 合并，文件保存在仓库根目录。
+- PR #6 合并后的最新 main CI [#29197433911](https://github.com/xhy-nju/CodingAgent/actions/runs/29197433911) 全部通过。
+- README 第一屏统一记录项目名称、仓库、公网 WebUI、视频、镜像版本和最新 CI，消除交付入口分散及旧占位描述。
