@@ -20,16 +20,19 @@ cd /opt/coding-agent
 ```bash
 cat > .env <<'EOF'
 GITHUB_REPOSITORY_OWNER=xhy-nju
-CODING_AGENT_TAG=latest
+CODING_AGENT_TAG=1.0.1
 ENABLE_REAL_LLM=true
 OPENAI_BASE_URL=https://njusehub.info/v1
 OPENAI_MODEL=glm-5.2
 ADMIN_PASSWORD=替换为高强度密码
 SESSION_SECRET=替换为至少32位随机字符串
 SESSION_TTL_SECONDS=28800
+COOKIE_SECURE=true
 EOF
 chmod 600 .env
 ```
+
+使用域名和 HTTPS 时必须保持 `COOKIE_SECURE=true`。如果暂时只通过 `http://服务器IP` 演示，可将其显式设为 `false`；启用 HTTPS 后应立即改回 `true`，否则登录 Cookie 会降低传输安全性。
 
 推荐使用以下命令生成 Session Secret：
 
@@ -52,7 +55,7 @@ unset API_KEY
 
 ```bash
 docker compose -f docker-compose.production.yml pull
-docker compose -f docker-compose.production.yml up -d
+docker compose -f docker-compose.production.yml up -d --force-recreate
 docker compose -f docker-compose.production.yml ps
 curl --fail http://127.0.0.1:8000/api/health
 ```

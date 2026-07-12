@@ -66,6 +66,7 @@ def test_production_distribution_uses_secret_and_public_image() -> None:
     assert "ghcr.io/${GITHUB_REPOSITORY_OWNER}/coding-agent" in production
     assert "OPENAI_API_KEY_FILE: /run/secrets/openai_api_key" in production
     assert "/run/secrets/openai_api_key" in production
+    assert "COOKIE_SECURE: ${COOKIE_SECURE:-true}" in production
     assert "127.0.0.1:8000:8000" in production
     assert "healthcheck:" in production
     assert "packages: write" in publish
